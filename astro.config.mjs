@@ -1,11 +1,17 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
-import netlify from '@astrojs/netlify';
+import cloudflare from '@astrojs/cloudflare';
 
 // https://astro.build/config
 export default defineConfig({
   output: 'server',
-  // Edge-function emulation needs Deno locally; we don't use edge functions.
-  adapter: netlify({ devFeatures: { environmentVariables: false, images: false, edgeFunctions: false } }),
+  adapter: cloudflare(),
+  // We keep our own state in MongoDB; don't provision a KV namespace for Astro sessions.
+  session: false,
+  vite: {
+    // Dev only: the MongoDB driver's CJS dep tr46 requires "punycode/", which workerd dev can't resolve.
+    resolve: { alias: { 'punycode/': 'punycode' } },
+    environments: { ssr: { optimizeDeps: { include: ['mongodb'] } } },
+  },
   server: { host: '127.0.0.1', port: 4327 },
 });

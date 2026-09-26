@@ -1,5 +1,6 @@
-import dns from 'node:dns';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { MongoClient, type Collection } from 'mongodb';
+import { envVar } from './env';
 import { EVICT_AFTER_MS, SESSION_TTL_MS, type Member, type MemberStatus, type Session, type Signal } from './types';
 
 export type AddResult = 'ok' | 'full' | 'missing';
@@ -25,23 +26,35 @@ interface SignalDoc extends Signal { expiresAt: Date }
 
 class MongoStore implements Store {
   private ready: Promise<{ sessions: Collection<Session>; signals: Collection<SignalDoc>; rates: Collection<RateDoc> }>;
+  private client: MongoClient;
 
   constructor(uri: string, dbName: string) {
+    // Workers can't share sockets between requests, so each request gets a small, short-lived client.
+    const client = new MongoClient(uri, { maxPoolSize: 1, minPoolSize: 0, serverSelectionTimeoutMS: 8000 });
+    this.client = client;
     this.ready = (async () => {
-      const client = await new MongoClient(uri, { maxPoolSize: 5 }).connect();
+      await client.connect();
       const db = client.db(dbName);
       const sessions = db.collection<Session>('sessions');
       const signals = db.collection<SignalDoc>('signals');
       const rates = db.collection<RateDoc>('ratelimits');
-      await Promise.all([
-        sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-        sessions.createIndex({ otpHash: 1 }),
-        signals.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-        signals.createIndex({ sid: 1, to: 1, at: 1 }),
-        rates.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-      ]);
+      if (!g.__tetherIndexed) {
+        // Idempotent; racing first requests just both create them.
+        await Promise.all([
+          sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+          sessions.createIndex({ otpHash: 1 }),
+          signals.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+          signals.createIndex({ sid: 1, to: 1, at: 1 }),
+          rates.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+        ]);
+        g.__tetherIndexed = true;
+      }
       return { sessions, signals, rates };
     })();
+  }
+
+  async close() {
+    await this.client.close().catch(() => {});
   }
 
   async createSession(s: Session) {
@@ -176,22 +189,31 @@ class MemoryStore implements Store {
 
 /* ------------------------------------------------------------------ export */
 
-const g = globalThis as unknown as { __tetherStore?: Store };
+const g = globalThis as unknown as { __tetherMemory?: MemoryStore; __tetherIndexed?: boolean };
+const scope = new AsyncLocalStorage<{ store?: MongoStore }>();
+
+/** Runs a request handler with its own DB client, closed once the handler settles. */
+export async function withStore<T>(fn: () => Promise<T>): Promise<T> {
+  const slot: { store?: MongoStore } = {};
+  try {
+    return await scope.run(slot, fn);
+  } finally {
+    await slot.store?.close();
+  }
+}
 
 export function store(): Store {
-  if (g.__tetherStore) return g.__tetherStore;
-  const uri = import.meta.env.MONGODB_URI ?? process.env.MONGODB_URI;
-  if (uri) {
-    // Some Windows setups hand Node a dead loopback DNS server, which breaks mongodb+srv lookups.
-    if (import.meta.env.DEV && dns.getServers().every((s) => s === '127.0.0.1' || s === '::1')) {
-      dns.setServers(['1.1.1.1', '8.8.8.8']);
+  const uri = envVar('MONGODB_URI');
+  if (!uri) {
+    if (!import.meta.env.DEV) throw new Error('MONGODB_URI is not set');
+    if (!g.__tetherMemory) {
+      console.warn('[tether] MONGODB_URI not set — using in-memory store (dev only).');
+      g.__tetherMemory = new MemoryStore();
     }
-    g.__tetherStore =new MongoStore(uri, import.meta.env.MONGODB_DB ?? process.env.MONGODB_DB ?? 'tether');
-  } else if (import.meta.env.DEV) {
-    console.warn('[tether] MONGODB_URI not set — using in-memory store (dev only).');
-    g.__tetherStore = new MemoryStore();
-  } else {
-    throw new Error('MONGODB_URI is not set');
+    return g.__tetherMemory;
   }
-  return g.__tetherStore;
+  const slot = scope.getStore();
+  if (!slot) throw new Error('store() called outside withStore()');
+  slot.store ??= new MongoStore(uri, envVar('MONGODB_DB') ?? 'tether');
+  return slot.store;
 }

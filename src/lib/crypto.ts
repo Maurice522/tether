@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { envVar } from './env';
 
 // Crockford base32 without look-alikes (no I, L, O, U).
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -19,7 +20,7 @@ export function randomOtp(): string {
 }
 
 function pepper(): string {
-  const p = import.meta.env.TETHER_PEPPER ?? process.env.TETHER_PEPPER;
+  const p = envVar('TETHER_PEPPER');
   if (!p && import.meta.env.PROD) throw new Error('TETHER_PEPPER is not set');
   return p || 'dev-pepper';
 }

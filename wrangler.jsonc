@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tether",
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "compatibility_date": "2026-09-01",
+  // node:net / node:tls / node:dns for the MongoDB driver, AsyncLocalStorage for per-request DB clients.
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "vars": { "MONGODB_DB": "tether" }
+  // Secrets (wrangler secret put): MONGODB_URI, TETHER_PEPPER
+}

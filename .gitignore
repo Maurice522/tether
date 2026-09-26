@@ -23,5 +23,9 @@ pnpm-debug.log*
 # jetbrains setting folder
 .idea/
 
-# Local Netlify folder
+# Local Netlify folder (legacy)
 .netlify
+
+# Cloudflare local secrets / build
+.dev.vars*
+.wrangler/

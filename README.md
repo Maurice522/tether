@@ -2,7 +2,7 @@
 
 Share one clipboard across 2–4 computers. Start a session, share the 6-digit code (or an invite link that skips the code), and whatever gets copied lands on everyone else's clipboard.
 
-**Stack:** Astro 7 (SSR) · Netlify Functions (via `@astrojs/netlify`) · MongoDB Atlas · WebRTC data channels.
+**Stack:** Astro 7 (SSR) · Cloudflare Workers (via `@astrojs/cloudflare`) · MongoDB Atlas · WebRTC data channels.
 
 ## How it works
 
@@ -14,7 +14,7 @@ Share one clipboard across 2–4 computers. Start a session, share the 6-digit c
 | Clips + live status between peers | WebRTC data channels, encrypted, browser to browser |
 | Name | `tether_name` cookie (400 days, the browser maximum) + `tether_tag` 4-char device tag → `Name#TAG` |
 
-Netlify Functions can't keep connections open, so each client polls `POST /api/session/:id/sync`. That one call is the heartbeat, carries outgoing signals and status, and returns the member list plus incoming signals. Polling runs fast (1.5 s) while a handshake is in progress and slows to 6–25 s once everyone has a direct link.
+Each client polls `POST /api/session/:id/sync`. That one call is the heartbeat, carries outgoing signals and status, and returns the member list plus incoming signals. Polling runs fast (1.5 s) while a handshake is in progress and slows to 6–25 s once everyone has a direct link.
 
 ### What a website can't do (by design)
 
@@ -27,21 +27,29 @@ Netlify Functions can't keep connections open, so each client polls `POST /api/s
 
 ```bash
 npm install
-cp .env.example .env   # optional: without MONGODB_URI an in-memory store is used (dev only)
+cp .env.example .env   # PUBLIC_* build-time keys
+# server secrets for local workerd: MONGODB_URI and TETHER_PEPPER in .dev.vars
+# (without MONGODB_URI an in-memory store is used, dev only)
 npm run dev            # http://127.0.0.1:4327
 ```
 
 To test two people on one machine, open `http://127.0.0.1:4327` and `http://localhost:4327`. They're different origins, so they get separate cookies and storage.
 
-## Deploy (Netlify)
+## Deploy (Cloudflare Workers)
 
-1. Create a free MongoDB Atlas M0 cluster. Allow access from anywhere (`0.0.0.0/0`), since Netlify has no fixed IPs.
-2. Push this repo, import it in Netlify (the build settings come from `netlify.toml`).
-3. Set the env vars: `MONGODB_URI`, `MONGODB_DB`, `TETHER_PEPPER` (random 32 bytes), plus the optional `PUBLIC_SPOTIFY_CLIENT_ID` and `PUBLIC_TURN_*`.
-4. Spotify (optional): in the Spotify dashboard add `https://<your-site>/spotify/callback` as a redirect URI.
+```bash
+npx wrangler login
+npx wrangler secret put MONGODB_URI
+npx wrangler secret put TETHER_PEPPER
+npm run build && npx wrangler deploy
+```
+
+`MONGODB_DB` is set in `wrangler.jsonc`. `PUBLIC_SPOTIFY_CLIENT_ID` and `PUBLIC_TURN_*` are baked in at build time from `.env`. For Spotify, add `https://<your-site>/spotify/callback` as a redirect URI in the Spotify dashboard.
+
+Workers can't reuse a database connection across requests, so each API request opens a short-lived MongoDB client (see `withStore` in `src/lib/store.ts`).
 
 ### Free-tier budget
 
-Netlify's free plan includes 125k function calls a month. A 2-person session with direct links polls about every 6 s (visible tab) → ~1,200 calls/hour. That's fine for personal use; for heavier use, move signaling to a WebSocket service (e.g. PartyKit / Cloudflare Durable Objects) and keep the rest.
+The Workers free plan allows 100k requests a day. A 2-person session with direct links polls about every 6 s (visible tab) → ~1,200 requests/hour. That's fine for personal use; for heavier use, move signaling to a WebSocket service (e.g. PartyKit / Cloudflare Durable Objects) and keep the rest.
 
 About 10–20% of networks (strict NAT or corporate) can't form a direct WebRTC link. Clips then go through the server relay automatically; add a TURN server (`PUBLIC_TURN_*`) to avoid that.

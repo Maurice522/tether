@@ -1,9 +1,0 @@
-[build]
-  command = "npm run build"
-  publish = "dist"
-
-[build.environment]
-  NODE_VERSION = "22"
-
-# Set MONGODB_URI, MONGODB_DB, TETHER_PEPPER (and optional PUBLIC_* keys) in
-# Netlify → Site configuration → Environment variables.

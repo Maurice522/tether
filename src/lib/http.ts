@@ -1,6 +1,6 @@
 import type { APIContext } from 'astro';
 import { digest, safeEqual } from './crypto';
-import { store } from './store';
+import { store, withStore } from './store';
 import { ONLINE_WINDOW_MS, type Member, type PublicMember, type Session } from './types';
 
 export class HttpError extends Error {
@@ -18,7 +18,7 @@ export function json(data: unknown, status = 200): Response {
 export function route(fn: (ctx: APIContext) => Promise<Response>) {
   return async (ctx: APIContext) => {
     try {
-      return await fn(ctx);
+      return await withStore(() => fn(ctx));
     } catch (err) {
       if (err instanceof HttpError) return json({ error: err.message }, err.status);
       console.error(err);
