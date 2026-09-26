@@ -232,10 +232,21 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     try { sessionStorage.setItem(`tether:clips:${sid}`, JSON.stringify(clips.slice(0, MAX_HISTORY))); } catch { /* quota */ }
   }
 
-  function share(text: string, source: 'auto' | 'manual') {
+  /**
+   * `auto` / `clipboard`: the text came from the OS clipboard, so it becomes the new baseline.
+   * `typed`: composer text never touched the clipboard; leave the baseline alone, or the next
+   * auto-read sees the (unchanged) clipboard as "new" and sends it again.
+   */
+  function share(text: string, source: 'auto' | 'clipboard' | 'typed') {
     if (!text.trim()) return;
+    if (source !== 'typed') lastClip = text;
     if (new Blob([text]).size > MAX_CLIP) { toast('That clip is over 64 KB — too big to send.', { error: true }); return; }
     if (!syncing && source === 'auto') return;
+    const key = text.trim();
+    if (clips.some((c) => c.text.trim() === key)) {
+      if (source !== 'auto') toast('Already in the list. Use its copy button instead.');
+      return;
+    }
     const peers = members.filter((m) => m.id !== myId && m.online);
     const me = nameOf(myId);
     const clip: Clip = {
@@ -243,7 +254,6 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       at: Date.now(), dir: 'out', via: 'p2p',
     };
     seen.add(clip.id);
-    lastClip = text;
     let relayed = 0;
     for (const p of peers) {
       const payload = { t: 'clip', id: clip.id, text, at: clip.at };
@@ -256,7 +266,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     persistClips();
     renderClips();
     if (!peers.length) toast('Saved here. Nobody else is online yet.');
-    else if (source === 'manual') toast(`Sent to ${peers.length === 1 ? peers[0].name : `${peers.length} devices`}`, { icon: '↗' });
+    else if (source !== 'auto') toast(`Sent to ${peers.length === 1 ? peers[0].name : `${peers.length} devices`}`, { icon: '↗' });
   }
 
   async function receive(from: string, msg: any, via: 'p2p' | 'relay') {
@@ -331,7 +341,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     const t = e.target as HTMLElement;
     if (t.closest('input, textarea, [contenteditable]') || document.querySelector('dialog[open]')) return;
     const text = e.clipboardData?.getData('text/plain');
-    if (text) { e.preventDefault(); share(text, 'manual'); }
+    if (text) { e.preventDefault(); share(text, 'clipboard'); }
   });
 
   const composer = $<HTMLFormElement>('[data-composer]');
@@ -340,7 +350,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     e.preventDefault();
     const v = composerInput.value;
     if (!v.trim()) return composerInput.focus();
-    share(v, 'manual');
+    share(v, 'typed');
     composerInput.value = '';
   });
   composerInput.addEventListener('keydown', (e) => {
@@ -350,7 +360,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     const text = await readClipboard();
     if (text == null) toast('Clipboard access was blocked. Press Ctrl+V on the page instead.', { error: true });
     else if (!text.trim()) toast('Your clipboard is empty (or holds an image, which isn\'t supported yet).');
-    else share(text, 'manual');
+    else share(text, 'clipboard');
   });
 
   const syncToggle = $<HTMLInputElement>('[data-sync-toggle]');
