@@ -1,0 +1,395 @@
+---
+import Layout from '../layouts/Layout.astro';
+export const prerender = true;
+---
+<Layout>
+  <section class="hero wrap">
+    <div class="hero-copy">
+      <p class="eyebrow"><span class="live-dot"></span> Clipboard, shared between 2–4 computers</p>
+      <h1>Copy on one.<br /><span class="serif">Paste on the other.</span></h1>
+      <p class="lede">
+        Link your laptop, your desktop, or a friend's machine with a 6-digit code.
+        What you copy on one shows up on the others. It goes straight from browser to browser.
+      </p>
+
+      <div class="dock card">
+        <div class="dock-start">
+          <button class="btn btn-accent btn-lg" id="start">
+            Start a session
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+          <p class="muted small">You get a code and an invite link.</p>
+        </div>
+        <div class="dock-or" aria-hidden="true"><span>or</span></div>
+        <form class="dock-join" id="join-form" autocomplete="off">
+          <label for="otp" class="eyebrow">Join with a code</label>
+          <div class="otp" data-otp>
+            <input id="otp" name="otp" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" aria-label="6-digit session code" />
+            <div class="otp-cells" aria-hidden="true">
+              {Array.from({ length: 6 }, (_, i) => <span class="cell" data-i={i}></span>)}
+            </div>
+          </div>
+          <button class="btn btn-sm" type="submit" id="join-btn">Join</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="stage" aria-hidden="true">
+      <div class="device device-a">
+        <div class="bar"><i></i><i></i><i></i><span class="mono">Maurice#7F3A</span></div>
+        <div class="screen">
+          <div class="line w80"></div><div class="line w60"></div>
+          <div class="sel mono" data-demo-src>git push origin main</div>
+          <div class="line w70"></div><div class="line w40"></div>
+        </div>
+        <div class="status"><span class="dot on"></span> VS Code</div>
+      </div>
+
+      <svg class="cable" data-cable>
+        <path data-cable-path />
+        <path class="cable-glow" data-cable-path pathLength="100" />
+      </svg>
+      <div class="packet mono" data-demo-packet>git push origin main</div>
+
+      <div class="device device-b">
+        <div class="bar"><i></i><i></i><i></i><span class="mono">Sam#K2QP</span></div>
+        <div class="screen">
+          <div class="line w50"></div>
+          <div class="paste mono" data-demo-dst><span class="caret"></span></div>
+          <div class="line w70"></div><div class="line w60"></div>
+        </div>
+        <div class="status"><span class="eq"><i></i><i></i><i></i></span> Midnight City · M83</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="steps wrap">
+    <article>
+      <span class="num mono">01</span>
+      <h3>Start</h3>
+      <p class="muted">Pick a name once and it's remembered. You get a session with a 6-digit code that lasts 10 minutes.</p>
+    </article>
+    <article>
+      <span class="num mono">02</span>
+      <h3>Link up</h3>
+      <p class="muted">Read the code out, or send the invite link, which skips the code. Up to 4 people per session.</p>
+    </article>
+    <article>
+      <span class="num mono">03</span>
+      <h3>Copy, paste</h3>
+      <p class="muted">Copy something and come back to the tab, or press <kbd>Ctrl</kbd><kbd>V</kbd> on the page. It lands on everyone else's clipboard.</p>
+    </article>
+  </section>
+
+  <section class="honest wrap">
+    <div class="card honest-card">
+      <div>
+        <p class="eyebrow">What a browser can and can't do</p>
+        <h2>No install, so a few <span class="serif">rules apply.</span></h2>
+      </div>
+      <ul>
+        <li><b>Syncing happens when you switch to the tab.</b> Browsers only let a page read your clipboard while it's in front, so switch to Tether after copying and it sends. In Firefox and Safari, press <kbd>Ctrl</kbd><kbd>V</kbd> on the page.</li>
+        <li><b>Incoming clips land when you switch to the tab.</b> Everything received also stays in the list, one click to copy.</li>
+        <li><b>You set your own status.</b> A website can't see which app you're using, so you pick it: VS Code, Figma, whatever.</li>
+        <li><b>Clips go straight between your browsers.</b> They only pass through our server if a direct link can't be made, and then they're deleted after two minutes.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="wrap foot muted">
+    <span class="mono">tether</span>
+    <span>Sessions end after 12 hours of inactivity.</span>
+  </footer>
+</Layout>
+
+<script>
+  import { ensureName } from '../scripts/identity';
+  import { api, membership, toast } from '../scripts/ui';
+
+  const startBtn = document.getElementById('start') as HTMLButtonElement;
+  const form = document.getElementById('join-form') as HTMLFormElement;
+  const otpInput = document.getElementById('otp') as HTMLInputElement;
+  const cells = [...document.querySelectorAll<HTMLElement>('.otp .cell')];
+  const otpBox = document.querySelector<HTMLElement>('[data-otp]')!;
+
+  startBtn.addEventListener('click', async () => {
+    try {
+      const me = await ensureName({ reason: 'Others in the session will see this name.' });
+      startBtn.disabled = true;
+      const res = await api('/api/session/create', { body: { name: me.name, tag: me.tag } });
+      membership.set(res.sessionId, res.member);
+      location.href = `/s/${res.sessionId}`;
+    } catch (e: any) {
+      startBtn.disabled = false;
+      if (e.message !== 'cancelled') toast(e.message, { error: true });
+    }
+  });
+
+  function paintOtp() {
+    const v = otpInput.value;
+    const focused = document.activeElement === otpInput;
+    cells.forEach((c, i) => {
+      c.textContent = v[i] ?? '';
+      c.classList.toggle('filled', !!v[i]);
+      c.classList.toggle('active', focused && (i === v.length || (v.length === 6 && i === 5)));
+    });
+  }
+  otpInput.addEventListener('input', () => {
+    otpInput.value = otpInput.value.replace(/\D/g, '').slice(0, 6);
+    otpBox.classList.remove('shake');
+    paintOtp();
+    if (otpInput.value.length === 6) form.requestSubmit();
+  });
+  otpInput.addEventListener('focus', paintOtp);
+  otpInput.addEventListener('blur', paintOtp);
+  paintOtp();
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const otp = otpInput.value;
+    if (otp.length !== 6) { otpInput.focus(); return; }
+    const btn = document.getElementById('join-btn') as HTMLButtonElement;
+    try {
+      const me = await ensureName({ reason: 'The person who shared the code will see this name.' });
+      btn.disabled = true;
+      const res = await api('/api/session/join', { body: { otp, name: me.name, tag: me.tag } });
+      membership.set(res.sessionId, res.member);
+      location.href = `/s/${res.sessionId}`;
+    } catch (err: any) {
+      btn.disabled = false;
+      if (err.message === 'cancelled') return;
+      otpBox.classList.remove('shake');
+      void otpBox.offsetWidth;
+      otpBox.classList.add('shake');
+      toast(err.message, { error: true });
+    }
+  });
+
+  // Hero demo: cycle a few clips through the cable.
+  const samples = ['git push origin main', 'https://figma.com/file/x9…', 'Standup moved to 4:30', 'npm i @astrojs/netlify', '#c8f53a'];
+  const src = document.querySelector<HTMLElement>('[data-demo-src]')!;
+  const packet = document.querySelector<HTMLElement>('[data-demo-packet]')!;
+  const dst = document.querySelector<HTMLElement>('[data-demo-dst]')!;
+  const stage = document.querySelector<HTMLElement>('.stage')!;
+  const cable = document.querySelector<SVGSVGElement>('[data-cable]')!;
+  // Route the cable from the copied text on device A to the paste field on device B.
+  function layCable() {
+    const box = stage.getBoundingClientRect();
+    const a = src.getBoundingClientRect();
+    const b = dst.getBoundingClientRect();
+    const x1 = a.right - box.left + 6, y1 = a.top + a.height / 2 - box.top;
+    const x2 = b.left - box.left - 6, y2 = b.top + b.height / 2 - box.top;
+    const dx = Math.max(60, Math.abs(x2 - x1) * 0.6);
+    const d = `M${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+    cable.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
+    cable.querySelectorAll('[data-cable-path]').forEach((p) => p.setAttribute('d', d));
+    packet.style.offsetPath = `path('${d}')`;
+  }
+  new ResizeObserver(layCable).observe(stage);
+
+  let i = 0;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function cycle() {
+    const text = samples[i++ % samples.length];
+    src.textContent = text;
+    packet.textContent = text;
+    src.classList.remove('copied'); void src.offsetWidth; src.classList.add('copied');
+    layCable();
+    packet.classList.remove('fly'); void packet.offsetWidth; packet.classList.add('fly');
+    cable.classList.remove('firing'); void cable.getBoundingClientRect(); cable.classList.add('firing');
+    setTimeout(() => {
+      dst.innerHTML = '';
+      dst.append(document.createTextNode(text));
+      const caret = document.createElement('span'); caret.className = 'caret'; dst.append(caret);
+      dst.classList.remove('landed'); void dst.offsetWidth; dst.classList.add('landed');
+    }, reduce ? 0 : 1250);
+  }
+  cycle();
+  setInterval(cycle, 3600);
+</script>
+
+<style>
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: 48px;
+    align-items: center;
+    padding-top: clamp(24px, 6vh, 72px);
+    padding-bottom: 72px;
+  }
+  .live-dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow);
+    margin-right: 6px; vertical-align: 1px;
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 7px transparent; } }
+  h1 {
+    margin: 16px 0 18px;
+    font-size: clamp(44px, 6.6vw, 84px);
+    line-height: 0.95;
+    letter-spacing: -0.055em;
+    font-weight: 600;
+  }
+  h1 .serif { font-size: 1.1em; letter-spacing: -0.03em; color: var(--accent-text); }
+  .lede { font-size: 17px; max-width: 46ch; color: var(--muted); margin: 0 0 32px; text-wrap: pretty; }
+  .small { font-size: 13px; margin: 0; }
+
+  .dock {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: center;
+    gap: 22px;
+    padding: 18px 18px 18px 22px;
+    border-radius: 26px;
+    max-width: 620px;
+  }
+  .dock-start { display: grid; gap: 8px; justify-items: start; }
+  .dock-or { align-self: stretch; display: grid; place-items: center; position: relative; }
+  .dock-or::before { content: ''; position: absolute; inset: 0 50%; border-left: 1px dashed var(--line-strong); }
+  .dock-or span { position: relative; background: var(--surface); padding: 4px 0; font-size: 12px; color: var(--faint); font-family: var(--font-mono); }
+  .dock-join { display: grid; grid-template-columns: 1fr auto; gap: 8px 10px; align-items: center; }
+  .dock-join label { grid-column: 1 / -1; }
+
+  .otp { position: relative; height: 46px; }
+  .otp input {
+    position: absolute; inset: 0; width: 100%; opacity: 0; font-size: 16px;
+    caret-color: transparent; z-index: 1; cursor: text;
+  }
+  .otp-cells { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; height: 100%; }
+  .cell {
+    display: grid; place-items: center;
+    border-radius: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    font: 500 20px var(--font-mono);
+    transition: border-color 150ms, transform 250ms var(--ease-spring), background 150ms;
+  }
+  .cell.filled { background: var(--surface); border-color: var(--line-strong); animation: pop 260ms var(--ease-spring); }
+  .cell.active { border-color: var(--accent-text); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .cell.active:empty::after { content: ''; width: 2px; height: 20px; background: var(--accent-text); animation: blink 1s steps(1) infinite; }
+  @keyframes pop { from { transform: scale(0.85); } }
+  @keyframes blink { 50% { opacity: 0; } }
+  .otp.shake { animation: shake 420ms var(--ease-out); }
+  @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+
+  /* ----------------------------------------------------------- hero stage */
+  .stage { position: relative; aspect-ratio: 1.08; min-height: 360px; }
+  .device {
+    position: absolute;
+    width: 58%;
+    border-radius: 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .device-a { top: 2%; left: 0; transform: rotate(-2.5deg); }
+  .device-b { bottom: 2%; right: 0; transform: rotate(2deg); }
+  .bar { display: flex; align-items: center; gap: 5px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 11px; color: var(--faint); }
+  .bar i { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
+  .bar span { margin-left: auto; }
+  .screen { padding: 16px 14px; display: grid; gap: 9px; }
+  .line { height: 7px; border-radius: 4px; background: var(--surface-2); }
+  .w40 { width: 40%; } .w50 { width: 50%; } .w60 { width: 60%; } .w70 { width: 70%; } .w80 { width: 80%; }
+  .sel, .paste { font-size: 12.5px; padding: 5px 8px; border-radius: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sel { background: color-mix(in oklab, #4f8cff 22%, transparent); width: fit-content; max-width: 100%; }
+  .sel.copied { animation: copied 900ms var(--ease-out); }
+  @keyframes copied { 0% { box-shadow: 0 0 0 0 var(--accent-glow); } 30% { box-shadow: 0 0 0 6px var(--accent-glow); } 100% { box-shadow: 0 0 0 0 transparent; } }
+  .paste { border: 1px dashed var(--line-strong); min-height: 29px; }
+  .paste.landed { animation: landed 700ms var(--ease-spring); border-color: var(--accent-text); }
+  @keyframes landed { from { background: var(--accent-glow); transform: scale(0.97); } }
+  .caret { display: inline-block; width: 1.5px; height: 13px; background: var(--text); margin-left: 2px; vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  .status { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+
+  .eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 11px; }
+  .eq i { width: 2.5px; background: var(--accent-text); border-radius: 1px; animation: eq 900ms ease-in-out infinite; }
+  .eq i:nth-child(2) { animation-delay: -300ms; } .eq i:nth-child(3) { animation-delay: -600ms; }
+  @keyframes eq { 0%, 100% { height: 30%; } 50% { height: 100%; } }
+
+  .cable { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; z-index: 1; pointer-events: none; }
+  .cable path { fill: none; stroke: var(--line-strong); stroke-width: 2; stroke-dasharray: 3 6; stroke-linecap: round; }
+  .cable .cable-glow { stroke: var(--accent-text); stroke-width: 2.5; stroke-dasharray: 18 130; stroke-dashoffset: 18; opacity: 0; }
+  .cable.firing .cable-glow { animation: flow 1.3s var(--ease-out); }
+  @keyframes flow { 0% { stroke-dashoffset: 18; opacity: 1; } 90% { opacity: 1; } 100% { stroke-dashoffset: -100; opacity: 0; } }
+
+  .packet {
+    position: absolute;
+    left: 0; top: 0;
+    offset-rotate: 0deg;
+    font-size: 11.5px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    white-space: nowrap;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 0 0 0 5px var(--accent-glow);
+    opacity: 0;
+    z-index: 2;
+  }
+  .packet.fly { animation: fly 1.3s var(--ease-out) forwards; }
+  @keyframes fly {
+    0% { offset-distance: 0%; opacity: 0; transform: scale(0.6); }
+    15% { opacity: 1; transform: scale(1); }
+    85% { opacity: 1; }
+    100% { offset-distance: 100%; opacity: 0; transform: scale(0.8); }
+  }
+
+  /* ---------------------------------------------------------------- steps */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-top: 1px solid var(--line);
+    padding-block: 40px 56px;
+    gap: 32px;
+  }
+  .steps article { display: grid; gap: 6px; align-content: start; }
+  .num { font-size: 12px; color: var(--accent-text); }
+  .steps h3 { margin: 0; font-size: 20px; letter-spacing: -0.02em; font-weight: 600; }
+  .steps p { margin: 0; max-width: 34ch; }
+  kbd {
+    font: 500 11.5px var(--font-mono);
+    padding: 1px 6px;
+    margin: 0 1px;
+    border-radius: 5px;
+    border: 1px solid var(--line-strong);
+    border-bottom-width: 2px;
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .honest-card {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: 40px;
+    padding: 36px;
+  }
+  .honest h2 { margin: 12px 0 0; font-size: 32px; line-height: 1.05; letter-spacing: -0.035em; font-weight: 600; }
+  .honest h2 .serif { font-size: 1.12em; }
+  .honest ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+  .honest li { padding-left: 22px; position: relative; color: var(--muted); }
+  .honest li::before { content: ''; position: absolute; left: 0; top: 9px; width: 8px; height: 8px; border-radius: 2px; background: var(--accent); }
+  .honest li b { color: var(--text); font-weight: 500; }
+
+  .foot { display: flex; justify-content: space-between; gap: 16px; padding-block: 40px; font-size: 13px; }
+
+  @media (max-width: 1080px) {
+    .hero { grid-template-columns: 1fr; gap: 40px; }
+    .stage { max-width: 560px; width: 100%; margin-inline: auto; min-height: 0; aspect-ratio: 1.5; }
+    .honest-card { grid-template-columns: 1fr; gap: 20px; padding: 26px; }
+  }
+  @media (max-width: 640px) {
+    .dock { grid-template-columns: 1fr; gap: 16px; padding: 18px; }
+    .dock-start .btn { width: 100%; }
+    .dock-or { height: 18px; }
+    .dock-or::before { inset: 50% 0; border-left: 0; border-top: 1px dashed var(--line-strong); }
+    .dock-or span { padding: 0 10px; }
+    .steps { grid-template-columns: 1fr; gap: 24px; }
+    .stage { aspect-ratio: 1.25; }
+    .device { width: 70%; }
+    .foot { flex-direction: column; }
+  }
+</style>

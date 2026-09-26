@@ -1,0 +1,130 @@
+---
+import '../styles/global.css';
+
+interface Props { title?: string; description?: string; wide?: boolean }
+const {
+  title = 'Tether — copy on one, paste on the other',
+  description = 'Link two to four computers with a 6-digit code and share one clipboard. Peer-to-peer, no install.',
+} = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0a0b0c" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f2f1ec" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet" />
+    <script is:inline>
+      try {
+        const t = localStorage.getItem('tether:theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <header class="topbar wrap">
+      <a href="/" class="brand" aria-label="Tether home">
+        <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
+          <rect x="2" y="9" width="10" height="14" rx="3.5" fill="currentColor" />
+          <rect x="20" y="9" width="10" height="14" rx="3.5" fill="none" stroke="currentColor" stroke-width="2" />
+          <path d="M12 16c3-5 5 5 8 0" fill="none" stroke="var(--accent-text)" stroke-width="2.2" stroke-linecap="round" />
+        </svg>
+        <span>tether</span>
+      </a>
+      <slot name="center" />
+      <div class="topbar-right">
+        <button class="btn btn-ghost btn-sm id-chip" data-identity data-rename hidden title="Change your name">
+          <span class="avatar" data-identity-avatar></span>
+          <span class="who"><span data-identity-name></span><span class="tag" data-identity-tag></span></span>
+        </button>
+        <button class="btn btn-ghost btn-sm icon-btn" id="theme-toggle" aria-label="Toggle theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <dialog class="sheet" id="name-gate" aria-labelledby="gate-title">
+      <form method="dialog" class="gate">
+        <p class="eyebrow">Before you connect</p>
+        <h2 id="gate-title">What should we <span class="serif">call you?</span></h2>
+        <p class="muted" data-reason></p>
+        <div class="gate-preview">
+          <span class="avatar" data-gate-avatar>?</span>
+          <span class="who"><span data-gate-preview>Your name</span><span class="tag" data-gate-tag></span></span>
+        </div>
+        <label class="sr-only" for="gate-name">Name</label>
+        <input id="gate-name" class="field" name="name" maxlength="24" autocomplete="nickname" placeholder="e.g. Maurice" required />
+        <p class="fine muted">Saved in a cookie on this browser only, until you clear it. The <span class="mono">#tag</span> tells devices with the same name apart.</p>
+        <div class="gate-actions">
+          <button class="btn btn-ghost" value="cancel" formnovalidate>Cancel</button>
+          <button class="btn btn-accent" type="submit">Continue</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script>
+      import { ensureName, paintIdentity } from '../scripts/identity';
+      paintIdentity();
+      document.querySelectorAll('[data-rename]').forEach((b) =>
+        b.addEventListener('click', () => ensureName({ force: true, reason: 'Changes apply to sessions you join from now on.' }).catch(() => {})),
+      );
+      document.getElementById('theme-toggle')?.addEventListener('click', () => {
+        const root = document.documentElement;
+        const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+        root.dataset.theme = dark ? 'light' : 'dark';
+        try { localStorage.setItem('tether:theme', root.dataset.theme); } catch {}
+      });
+    </script>
+
+    <style>
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        height: 72px;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 18px;
+        letter-spacing: -0.03em;
+      }
+      .topbar-right { display: flex; align-items: center; gap: 4px; }
+      .id-chip { gap: 9px; padding-left: 5px; }
+      .id-chip .avatar { width: 26px; height: 26px; border-radius: 8px; font-size: 11px; }
+      @media (max-width: 520px) { .id-chip .who .tag { display: none; } }
+
+      .gate { padding: 26px; display: grid; gap: 12px; }
+      .gate h2 { margin: 0; font-size: 26px; letter-spacing: -0.03em; font-weight: 600; line-height: 1.1; }
+      .gate h2 .serif { font-size: 1.12em; }
+      .gate p { margin: 0; }
+      .gate-preview {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px;
+        margin-top: 6px;
+        border-radius: 14px;
+        border: 1px dashed var(--line-strong);
+        font-size: 17px;
+      }
+      .gate-preview .empty { color: var(--faint); }
+      .fine { font-size: 12.5px; }
+      .gate-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+    </style>
+  </body>
+</html>

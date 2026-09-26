@@ -1,0 +1,25 @@
+---
+import Layout from '../../layouts/Layout.astro';
+export const prerender = true;
+---
+<Layout title="Connecting Spotify — Tether">
+  <section class="wrap cb">
+    <p class="eyebrow">Spotify</p>
+    <h1 data-msg>Connecting…</h1>
+  </section>
+</Layout>
+
+<script>
+  import { finishSpotifyLogin } from '../../scripts/spotify';
+  finishSpotifyLogin()
+    .then((back) => location.replace(back))
+    .catch((e) => {
+      document.querySelector('[data-msg]')!.textContent = e.message;
+      setTimeout(() => location.replace(e.back ?? '/'), 2200);
+    });
+</script>
+
+<style>
+  .cb { padding-block: 20vh; text-align: center; }
+  h1 { font-size: 28px; letter-spacing: -0.03em; font-weight: 600; }
+</style>

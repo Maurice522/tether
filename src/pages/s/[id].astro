@@ -1,0 +1,359 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+const id = String(Astro.params.id ?? '').toUpperCase();
+if (!/^[0-9A-Z]{8}$/.test(id)) return Astro.redirect('/');
+const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
+---
+<Layout title={`Session ${pretty} — Tether`}>
+  <div slot="center" class="session-pill pill mono" data-conn>
+    <span class="dot"></span>
+    <span data-conn-label>Connecting…</span>
+  </div>
+
+  <div class="room wrap" data-sid={id}>
+    <!-- Join / problem states -->
+    <section class="gatecard card" data-view="join" hidden>
+      <p class="eyebrow">Session <span class="mono">{pretty}</span></p>
+      <h1 data-join-title>Enter the <span class="serif">code</span></h1>
+      <p class="muted" data-join-sub>Ask someone in the session for the 6-digit code, or for an invite link.</p>
+      <form class="join-row" data-join-form autocomplete="off">
+        <input class="field mono otp-field" name="otp" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" autocomplete="one-time-code" aria-label="6-digit code" />
+        <button class="btn btn-accent" type="submit">Join</button>
+      </form>
+      <a href="/" class="btn btn-ghost btn-sm back">← Start your own session</a>
+    </section>
+
+    <section class="room-grid" data-view="room" hidden>
+      <!-- Left: who's here -->
+      <div class="col">
+        <div class="panel card mesh-panel">
+          <header class="panel-head">
+            <div>
+              <p class="eyebrow">Session <span class="mono">{pretty}</span></p>
+              <h2><span data-count>1</span><span class="muted">/4</span> linked</h2>
+            </div>
+            <button class="btn btn-sm" data-leave>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></svg>
+              Leave
+            </button>
+          </header>
+          <div class="constellation" data-constellation>
+            <svg class="links" viewBox="0 0 100 100" preserveAspectRatio="none" data-links></svg>
+          </div>
+        </div>
+
+        <div class="members" data-members></div>
+      </div>
+
+      <!-- Right: invite + clipboard -->
+      <div class="col">
+        <div class="panel card invite">
+          <header class="panel-head">
+            <div>
+              <p class="eyebrow">Invite</p>
+              <h2>Code to <span class="serif">join</span></h2>
+            </div>
+            <button class="btn btn-ghost btn-sm" data-new-code title="Get a new code (the old one stops working)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
+              New code
+            </button>
+          </header>
+          <button class="flap" data-flap aria-label="Copy code" title="Click to copy">
+            {Array.from({ length: 6 }, () => <span class="flap-cell"><span class="flap-digit">·</span></span>)}
+          </button>
+          <div class="timer"><div class="timer-bar" data-timer-bar></div></div>
+          <p class="timer-label mono muted" data-timer-label>&nbsp;</p>
+          <div class="invite-actions">
+            <button class="btn btn-accent" data-copy-invite>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>
+              Copy invite link
+            </button>
+            <button class="btn" data-share hidden>Share…</button>
+          </div>
+          <p class="fine muted">The invite link skips the code. Anyone with it can join while there's a free seat.</p>
+        </div>
+
+        <div class="panel card clips">
+          <header class="panel-head">
+            <div>
+              <p class="eyebrow">Shared clipboard</p>
+              <h2>Clips</h2>
+            </div>
+            <label class="switch" title="Pause syncing on this device">
+              <input type="checkbox" data-sync-toggle checked />
+              <span class="track"><span class="thumb"></span></span>
+              <span class="switch-label" data-sync-label>Syncing</span>
+            </label>
+          </header>
+
+          <div class="mode" data-mode></div>
+
+          <form class="composer" data-composer>
+            <textarea rows="2" placeholder="Type or paste here, then press Enter to send" data-composer-input aria-label="Text to send"></textarea>
+            <div class="composer-actions">
+              <button type="button" class="btn btn-sm" data-send-clipboard title="Send what's on your clipboard">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1.2"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg>
+                Send my clipboard
+              </button>
+              <button type="submit" class="btn btn-sm btn-accent icon-btn" aria-label="Send">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              </button>
+            </div>
+          </form>
+
+          <ol class="clip-list" data-clips></ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="loading" data-view="loading">
+      <span class="spinner"></span>
+    </section>
+  </div>
+
+  <dialog class="sheet" id="app-picker" aria-labelledby="picker-title">
+    <form method="dialog" class="picker">
+      <p class="eyebrow">Your status</p>
+      <h2 id="picker-title">What are you <span class="serif">working in?</span></h2>
+      <p class="muted fine">Websites can't see your other apps, so pick one and it shows next to your name.</p>
+      <div class="presets" data-presets></div>
+      <div class="custom-row">
+        <input class="field" name="custom" maxlength="40" placeholder="Something else…" data-custom-app />
+        <button class="btn" value="custom">Set</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" value="clear">Clear status</button>
+    </form>
+  </dialog>
+</Layout>
+
+<script>
+  import { startRoom } from '../../scripts/room';
+  startRoom(document.querySelector<HTMLElement>('.room')!);
+</script>
+
+<style is:global>
+  .session-pill { font-size: 12px; }
+  @media (max-width: 640px) { .session-pill { display: none; } }
+
+  .room { padding-bottom: 64px; }
+  .loading { display: grid; place-items: center; min-height: 50vh; }
+  .spinner { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line-strong); border-top-color: var(--accent-text); animation: spin 700ms linear infinite; }
+  @keyframes spin { to { rotate: 360deg; } }
+
+  .gatecard { max-width: 460px; margin: 10vh auto 0; padding: 30px; display: grid; gap: 12px; }
+  .gatecard h1 { margin: 0; font-size: 34px; letter-spacing: -0.04em; font-weight: 600; line-height: 1.05; }
+  .gatecard h1 .serif { font-size: 1.12em; color: var(--accent-text); }
+  .gatecard p { margin: 0; }
+  .join-row { display: flex; gap: 8px; margin-top: 8px; }
+  .otp-field { font-size: 22px; letter-spacing: 0.4em; text-align: center; }
+  .back { justify-self: start; margin-left: -10px; }
+
+  .room-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; padding-top: 8px; }
+  .col { display: grid; gap: 16px; min-width: 0; }
+  .panel { padding: 20px; min-width: 0; }
+  .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .panel-head h2 { margin: 4px 0 0; font-size: 24px; letter-spacing: -0.035em; font-weight: 600; line-height: 1.1; }
+  .panel-head h2 .serif { font-size: 1.12em; }
+  .fine { font-size: 12.5px; margin: 0; }
+
+  /* ---------------------------------------------------- constellation */
+  .constellation { position: relative; height: 250px; margin-top: 12px; }
+  .links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .links line { stroke: var(--line-strong); stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-dasharray: 2 5; transition: stroke 300ms; }
+  .links line.open { stroke: var(--accent-text); stroke-dasharray: none; stroke-width: 2; }
+  .links line.relay { stroke: var(--away); stroke-dasharray: 6 5; }
+  .links line.connecting { animation: dash 1s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -14; } }
+
+  .node {
+    position: absolute;
+    translate: -50% -50%;
+    display: grid;
+    justify-items: center;
+    gap: 7px;
+    text-align: center;
+    width: 128px;
+    transition: left 600ms var(--ease-spring), top 600ms var(--ease-spring);
+    animation: node-in 520ms var(--ease-spring) both;
+  }
+  @keyframes node-in { from { opacity: 0; scale: 0.6; } }
+  .node .avatar { width: 58px; height: 58px; border-radius: 19px; font-size: 19px; position: relative; box-shadow: 0 0 0 5px var(--surface), 0 0 0 6px var(--line); }
+  .node.me .avatar { box-shadow: 0 0 0 5px var(--surface), 0 0 0 7px var(--accent-text); }
+  .node.offline .avatar { filter: grayscale(1); opacity: 0.45; }
+  .node .avatar .dot { position: absolute; right: -3px; bottom: -3px; border: 2.5px solid var(--surface); width: 14px; height: 14px; box-shadow: none; }
+  .node .who { font-size: 13.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .node .sub { font-size: 11.5px; color: var(--muted); margin-top: -5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .node.empty { cursor: pointer; background: none; border: 0; padding: 0; color: var(--faint); animation: none; }
+  .node.empty .avatar { background: transparent; border: 1.5px dashed var(--line-strong); box-shadow: none; color: var(--faint); font-weight: 400; font-size: 22px; transition: border-color 200ms, color 200ms, scale 250ms var(--ease-spring); }
+  .node.empty:hover .avatar { border-color: var(--accent-text); color: var(--accent-text); scale: 1.06; }
+  .node.bump .avatar { animation: bump 500ms var(--ease-spring); }
+  @keyframes bump { 40% { scale: 1.12; } }
+
+  .pulse {
+    position: absolute;
+    width: 12px; height: 12px;
+    margin: -6px 0 0 -6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 5px var(--accent-glow), 0 0 18px var(--accent);
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  /* ------------------------------------------------------- member cards */
+  .members { display: grid; gap: 10px; }
+  .member {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 4px 14px;
+    align-items: center;
+    padding: 14px 16px;
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+  .member.enter { animation: node-in 420ms var(--ease-spring) both;
+  }
+  .member .avatar { grid-row: span 2; width: 42px; height: 42px; border-radius: 13px; }
+  .member .top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .member .top .who { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { font: 500 10.5px var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 6px; border-radius: 6px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); flex: none; }
+  .badge.you { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  .member .lines { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); min-width: 0; }
+  .member .line-item { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+  .member .line-item span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .member .line-item svg { width: 14px; height: 14px; flex: none; }
+  .member .line-item a { text-decoration: none; }
+  .member .line-item a:hover { text-decoration: underline; }
+  .member .conn { grid-row: span 2; align-self: center; }
+  .editable { background: none; border: 1px dashed var(--line-strong); border-radius: 8px; padding: 2px 8px; color: var(--muted); font-size: 13px; display: inline-flex; gap: 6px; align-items: center; transition: border-color 150ms, color 150ms; }
+  .editable:hover { border-color: var(--accent-text); color: var(--text); }
+  .eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 11px; width: 12px; }
+  .eq i { width: 2.5px; background: #1ed760; border-radius: 1px; animation: eq 900ms ease-in-out infinite; }
+  .eq i:nth-child(2) { animation-delay: -300ms; } .eq i:nth-child(3) { animation-delay: -600ms; }
+  .eq.paused i { animation: none; height: 30%; }
+  @keyframes eq { 0%, 100% { height: 30%; } 50% { height: 100%; } }
+
+  /* ------------------------------------------------------------- invite */
+  .flap {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    width: 100%;
+    margin-top: 16px;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .flap-cell {
+    position: relative;
+    display: grid;
+    place-items: center;
+    height: 68px;
+    border-radius: 12px;
+    background: linear-gradient(to bottom, var(--surface-2) 0 50%, color-mix(in oklab, var(--surface-2) 80%, var(--bg)) 50% 100%);
+    border: 1px solid var(--line);
+    font: 500 34px var(--font-mono);
+    overflow: hidden;
+    perspective: 300px;
+  }
+  .flap-cell::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--line-strong); }
+  .flap-digit { display: block; }
+  .flap-digit.flip { animation: flip 90ms linear; }
+  @keyframes flip { 0% { transform: rotateX(0); } 50% { transform: rotateX(-90deg); } 100% { transform: rotateX(0); } }
+  .flap:hover .flap-cell { border-color: var(--line-strong); }
+  .flap.expired .flap-cell { color: var(--faint); text-decoration: line-through; }
+  .timer { height: 3px; border-radius: 2px; background: var(--surface-2); margin-top: 12px; overflow: hidden; }
+  .timer-bar { height: 100%; background: var(--accent-text); transform-origin: left; transition: transform 1s linear; }
+  .timer-label { font-size: 12px; margin: 8px 0 14px; }
+  .invite-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .invite-actions .btn-accent { flex: 1; }
+
+  /* ---------------------------------------------------------------- clips */
+  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: var(--muted); user-select: none; }
+  .switch input { position: absolute; opacity: 0; pointer-events: none; }
+  .track { width: 34px; height: 20px; border-radius: 999px; background: var(--line-strong); position: relative; transition: background 200ms; }
+  .thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: translate 260ms var(--ease-spring); }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track .thumb { translate: 14px 0; }
+  .switch input:focus-visible + .track { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+
+  .mode {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--surface-2);
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .mode b { color: var(--text); font-weight: 500; }
+  .mode .btn { margin-left: auto; }
+  .ic { display: inline-flex; flex: none; }
+  .ic svg { width: 15px; height: 15px; }
+  .mode .ic { color: var(--accent-text); }
+  .mode .ic svg { width: 18px; height: 18px; }
+
+  .composer {
+    margin-top: 12px;
+    border-radius: 16px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    transition: border-color 150ms, box-shadow 150ms;
+  }
+  .composer:focus-within { border-color: var(--accent-text); box-shadow: 0 0 0 4px var(--accent-glow); }
+  .composer textarea { width: 100%; border: 0; background: none; resize: none; padding: 12px 14px 4px; font: 14px/1.5 var(--font-mono); outline: none; max-height: 180px; field-sizing: content; min-height: 52px; }
+  .composer-actions { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px 8px; gap: 8px; }
+
+  .clip-list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+  .clip-empty { text-align: center; padding: 28px 12px 16px; color: var(--faint); font-size: 13.5px; }
+  .clip-empty kbd { font: 500 11.5px var(--font-mono); padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line-strong); border-bottom-width: 2px; color: var(--text); background: var(--surface); }
+  .clip {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 10px;
+    padding: 12px 12px 12px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+  }
+  .clip.enter { animation: clip-in 460ms var(--ease-spring) both;
+  }
+  @keyframes clip-in { from { opacity: 0; transform: translateY(-8px) scale(0.98); } }
+  .clip.in { border-left: 3px solid var(--accent-text); }
+  .clip-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); min-width: 0; flex-wrap: wrap; }
+  .clip-meta .who { color: var(--text); }
+  .clip-meta .via { font: 500 10px var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 5px; border-radius: 5px; border: 1px solid var(--line-strong); }
+  .clip-meta .landed { color: var(--ok); }
+  .clip-meta .waiting { color: var(--away); }
+  .clip-text { grid-column: 1; font: 13px/1.5 var(--font-mono); white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .clip .copy { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+
+  .picker { padding: 26px; display: grid; gap: 12px; }
+  .picker h2 { margin: 0; font-size: 24px; letter-spacing: -0.03em; font-weight: 600; }
+  .picker h2 .serif { font-size: 1.12em; }
+  .picker p { margin: 0; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .presets .btn.active { border-color: var(--accent-text); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .custom-row { display: flex; gap: 8px; }
+  .picker > .btn-ghost { justify-self: start; margin-left: -8px; }
+
+  @media (max-width: 900px) {
+    .room-grid { grid-template-columns: 1fr; }
+    .room-grid > .col:last-child { order: -1; }
+  }
+  @media (max-width: 520px) {
+    .panel { padding: 16px; }
+    .flap-cell { height: 56px; font-size: 28px; }
+    .constellation { height: 220px; }
+    .node { width: 96px; }
+    .node .avatar { width: 48px; height: 48px; border-radius: 16px; font-size: 16px; }
+    .member { grid-template-columns: auto minmax(0, 1fr); }
+    .member .conn { grid-row: auto; grid-column: 2; justify-self: start; }
+  }
+</style>
