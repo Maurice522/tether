@@ -1,0 +1,9 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node", "astro/client"],
+    "noEmit": true
+  },
+  "include": ["worker-configuration.d.ts", "src/worker.ts", "src/server/**/*.ts"]
+}

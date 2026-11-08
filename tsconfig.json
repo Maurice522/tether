@@ -1,5 +1,6 @@
 {
   "extends": "astro/tsconfigs/strict",
   "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist"]
+  // Workers-runtime code is checked by tsconfig.worker.json: its types clash with DOM types used here.
+  "exclude": ["dist", "src/server", "src/worker.ts", "worker-configuration.d.ts"]
 }

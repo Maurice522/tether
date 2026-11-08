@@ -1,15 +1,9 @@
-import { authMember, json, route, sessionIdParam } from '../../../../lib/http';
-import { store } from '../../../../lib/store';
+import { json, memberHeader, route, sessionIdParam } from '../../../../lib/http';
+import { room } from '../../../../lib/rooms';
 
 export const POST = route(async (ctx) => {
   const sid = sessionIdParam(ctx);
-  const { session, me } = await authMember(ctx, sid);
-  await store().removeMember(sid, me.id);
-  const at = new Date();
-  await store().pushSignals(
-    session.members
-      .filter((m) => m.id !== me.id)
-      .map((m) => ({ sid, from: me.id, to: m.id, type: 'bye' as const, data: null, at })),
-  );
+  const me = memberHeader(ctx);
+  await room(sid).leave(me.id, me.token);
   return json({ ok: true });
 });

@@ -125,7 +125,6 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
   let myApp = localStorage.getItem('tether:app') ?? '';
   let myMusic: Music | null = null;
   let statusDirty = true;
-  let lastStatusSent = 0;
 
   let syncing = true;
   let readMode: ReadMode = 'manual';
@@ -255,48 +254,80 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     sendFiles(e.dataTransfer.files, card && card.dataset.id !== myId ? card.dataset.id : undefined);
   });
 
-  /* ------------------------------------------------------------- sync loop */
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let inflight = false;
+  /* ------------------------------------------------------------- live link */
+  // One WebSocket to the session's Durable Object carries roster, status, WebRTC signaling
+  // and the clip relay. No polling: background tabs get events as fast as foreground ones.
+  let ws: WebSocket | null = null;
+  let authed = false;
   let failures = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let flushQueued = false;
 
-  function schedule(ms: number) {
+  /** Flush queued signals and any status change. Name kept from the polling days; callers just mean "soon". */
+  function schedule(_ms?: number) {
+    if (flushQueued) return;
+    flushQueued = true;
+    queueMicrotask(() => { flushQueued = false; flush(); });
+  }
+
+  function flush() {
+    if (!ws || ws.readyState !== WebSocket.OPEN || !authed) return;
+    while (outbox.length) {
+      const s = outbox.shift()!;
+      ws.send(JSON.stringify({ t: 'signal', to: s.to, type: s.type, data: s.data }));
+    }
+    if (statusDirty) {
+      statusDirty = false;
+      ws.send(JSON.stringify({ t: 'status', status: myStatus() }));
+    }
+  }
+
+  function connect() {
     if (ended) return;
-    clearTimeout(timer);
-    timer = setTimeout(tick, ms);
+    clearTimeout(retryTimer);
+    const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/session/${sid}/ws`);
+    ws = sock;
+    authed = false;
+    // Keepalive; the server answers "pong" without waking the Durable Object.
+    const ping = setInterval(() => { if (sock.readyState === WebSocket.OPEN) sock.send('ping'); }, 25_000);
+    sock.onopen = () => {
+      // Authenticate in the first message so the member token never appears in a URL.
+      sock.send(JSON.stringify({ t: 'auth', id: seat.id, token: seat.token, status: myStatus() }));
+      statusDirty = false;
+    };
+    sock.onmessage = (e) => {
+      if (e.data === 'pong' || typeof e.data !== 'string') return;
+      let msg: any;
+      try { msg = JSON.parse(e.data); } catch { return; }
+      void onServer(msg);
+    };
+    sock.onclose = (e) => {
+      clearInterval(ping);
+      if (ws !== sock) return;
+      ws = null;
+      authed = false;
+      if (ended || e.code === 4003) return; // 4003: denied, handled in onServer
+      if (e.code === 4002) { endSession("This session is open in another tab", 'Close the other tab, or reload here to take over.', false); return; }
+      if (e.code === 4001) return; // we left
+      failures++;
+      setConn('warn', 'Reconnecting…');
+      retryTimer = setTimeout(connect, Math.min(15_000, 400 * 2 ** failures));
+    };
   }
 
-  function nextDelay() {
-    const peers = members.filter((m) => m.id !== myId && m.online);
-    const settled = peers.every((p) => peerState.get(p.id) === 'open');
-    const hidden = document.visibilityState === 'hidden';
-    if (failures) return Math.min(30_000, 2000 * 2 ** failures);
-    // Fast while someone is handshaking or a seat is open; relaxed once everyone is on a direct link.
-    if (!settled) return hidden ? 4000 : 1500;
-    if (peers.length + 1 < 4) return hidden ? 20_000 : 6000;
-    return hidden ? 25_000 : 15_000;
-  }
-
-  async function tick() {
-    if (inflight || ended) return;
-    inflight = true;
-    const signals = outbox.splice(0, 12);
-    const sendStatus = statusDirty || Date.now() - lastStatusSent > 60_000;
-    try {
-      const res = await api(`/api/session/${sid}/sync`, {
-        member: seat,
-        body: { signals, status: sendStatus ? myStatus() : undefined },
-      });
-      if (sendStatus) { statusDirty = false; lastStatusSent = Date.now(); }
+  async function onServer(msg: any) {
+    if (msg.t === 'roster') {
+      authed = true;
       failures = 0;
-      serverSkew = res.now - Date.now();
+      serverSkew = msg.now - Date.now();
       const prevIds = new Set(members.map((m) => m.id));
-      members = res.members;
-      if (res.otp !== otp) { otp = res.otp; flapTo(otp); }
-      otpExpiresAt = res.otpExpiresAt;
-      inviteToken = res.invite;
-
-      if (!firstSync) {
+      members = msg.members;
+      if (msg.otp !== otp) { otp = msg.otp; flapTo(otp); }
+      otpExpiresAt = msg.otpExpiresAt;
+      inviteToken = msg.invite;
+      if (firstSync) {
+        welcome();
+      } else {
         for (const m of members) if (!prevIds.has(m.id) && m.id !== myId) {
           toast(`${m.name} joined`, { icon: '→' });
           bumpNode(m.id);
@@ -304,31 +335,44 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
         for (const id of prevIds) if (!members.some((m) => m.id === id)) toast('Someone left the session');
       }
       firstSync = false;
-
-      for (const s of res.signals) {
-        if (s.type === 'clip') receive(s.from, s.data, 'relay');
-        else await mesh.handleSignal(s.from, s.type, s.data);
-      }
       mesh.reconcile(members.filter((m) => m.online).map((m) => m.id));
       for (const m of members) if (!m.online) files.peerGone(m.id);
+      flush();
       show('room');
       renderAll();
-    } catch (err: any) {
-      outbox.unshift(...signals);
-      if (err.status === 401 || err.status === 404) {
-        ended = true;
-        mesh.close();
-        membership.clear(sid);
-        showJoin(err.status === 404 ? 'This session has ended' : "You're no longer in this session", 'Enter a fresh code to join again, or start a new session.');
-        return;
-      }
-      failures++;
-      setConn('warn', 'Reconnecting…');
-    } finally {
-      inflight = false;
+    } else if (msg.t === 'signal') {
+      if (msg.type === 'clip') void receive(msg.from, msg.data, 'relay');
+      else await mesh.handleSignal(msg.from, msg.type, msg.data);
+    } else if (msg.t === 'denied') {
+      endSession(
+        msg.reason === 'ended' ? 'This session has ended' : "You're no longer in this session",
+        'Enter a fresh code to join again, or start a new session.',
+        true,
+      );
     }
-    schedule(nextDelay());
   }
+
+  /** First roster: tell a joiner whose session this is (the creator already knows). */
+  function welcome() {
+    const me = nameOf(myId);
+    const host = members.find((m) => m.host);
+    if (me && host && host.id !== myId && Date.now() - me.joinedAt < 60_000) {
+      toast(`You joined ${host.name}'s session`, { icon: '✓', ms: 3600 });
+    }
+  }
+
+  function endSession(title: string, sub: string, forget: boolean) {
+    ended = true;
+    mesh.close();
+    ws?.close(1000);
+    if (forget) membership.clear(sid);
+    showJoin(title, sub);
+  }
+
+  // Come back fast when the tab or network returns instead of waiting out the backoff.
+  const revive = () => { if (!ended && !ws) connect(); };
+  window.addEventListener('online', revive);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') revive(); });
 
   /* ------------------------------------------------------------- clipboard */
 
@@ -563,8 +607,9 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
 
   $('[data-leave]').addEventListener('click', async () => {
     ended = true;
-    clearTimeout(timer);
+    clearTimeout(retryTimer);
     mesh.close();
+    ws?.close(1000);
     await api(`/api/session/${sid}/leave`, { member: seat }).catch(() => {});
     membership.clear(sid);
     try { sessionStorage.removeItem(`tether:clips:${sid}`); } catch { /* ignore */ }
@@ -942,5 +987,5 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
 
   renderClips();
   renderMode();
-  tick();
+  connect();
 }
