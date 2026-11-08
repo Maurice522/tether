@@ -30,6 +30,7 @@ export const prerender = true;
             </div>
           </div>
           <button class="btn btn-sm" type="submit" id="join-btn">Join</button>
+          <p class="join-msg" id="join-msg" role="alert" aria-live="assertive" hidden></p>
         </form>
       </div>
       <ul class="trust" aria-label="Privacy at a glance">
@@ -194,6 +195,8 @@ export const prerender = true;
   otpInput.addEventListener('input', () => {
     otpInput.value = otpInput.value.replace(/\D/g, '').slice(0, 6);
     otpBox.classList.remove('shake');
+    otpBox.classList.remove('bad');
+    if (otpInput.value) joinMsg.hidden = true;
     paintOtp();
     if (otpInput.value.length === 6) form.requestSubmit();
   });
@@ -201,24 +204,42 @@ export const prerender = true;
   otpInput.addEventListener('blur', paintOtp);
   paintOtp();
 
+  const joinMsg = document.getElementById('join-msg')!;
+  /** Errors stay put next to the boxes (a toast is gone before you've read it), and the boxes clear for a retry. */
+  function joinError(message: string) {
+    joinMsg.textContent = message;
+    joinMsg.hidden = false;
+    otpBox.classList.remove('shake');
+    void otpBox.offsetWidth;
+    otpBox.classList.add('shake', 'bad');
+    otpInput.value = '';
+    paintOtp();
+    otpInput.focus();
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const otp = otpInput.value;
     if (otp.length !== 6) { otpInput.focus(); return; }
     const btn = document.getElementById('join-btn') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Checking…';
     try {
-      const me = await ensureName({ reason: 'The person who shared the code will see this name.' });
-      btn.disabled = true;
+      // Check the code first, so a typo fails before we ask for a name.
+      const info = await api('/api/session/check', { body: { otp } });
+      btn.textContent = 'Join';
+      const me = await ensureName({
+        reason: info.host ? `You're joining ${info.host}'s session. They'll see this name.` : 'The person who shared the code will see this name.',
+      });
+      btn.textContent = 'Joining…';
       const res = await api('/api/session/join', { body: { otp, name: me.name, tag: me.tag } });
       membership.set(res.sessionId, res.member);
       location.href = `/s/${res.sessionId}`;
     } catch (err: any) {
       btn.disabled = false;
+      btn.textContent = 'Join';
       if (err.message === 'cancelled') return;
-      otpBox.classList.remove('shake');
-      void otpBox.offsetWidth;
-      otpBox.classList.add('shake');
-      toast(err.message, { error: true });
+      joinError(err.message);
     }
   });
 
@@ -328,6 +349,8 @@ export const prerender = true;
   @keyframes pop { from { transform: scale(0.85); } }
   @keyframes blink { 50% { opacity: 0; } }
   .otp.shake { animation: shake 420ms var(--ease-out); }
+  .otp.bad .cell { border-color: var(--danger); }
+  .join-msg { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--danger); }
   @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
 
   /* ----------------------------------------------------------- hero stage */

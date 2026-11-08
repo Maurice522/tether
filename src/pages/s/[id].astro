@@ -21,6 +21,7 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
         <input class="field mono otp-field" name="otp" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" autocomplete="one-time-code" aria-label="6-digit code" />
         <button class="btn btn-accent" type="submit">Join</button>
       </form>
+      <p class="join-msg" data-join-msg role="alert" hidden></p>
       <a href="/" class="btn btn-ghost btn-sm back">← Start your own session</a>
     </section>
 
@@ -161,6 +162,8 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
   .gatecard p { margin: 0; }
   .join-row { display: flex; gap: 8px; margin-top: 8px; }
   .otp-field { font-size: 22px; letter-spacing: 0.4em; text-align: center; }
+  .otp-field.bad { border-color: var(--danger); }
+  .join-msg { margin: 0; font-size: 13px; color: var(--danger); }
   .back { justify-self: start; margin-left: -10px; }
 
   .room-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start; padding-top: 8px; }

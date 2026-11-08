@@ -6,6 +6,12 @@
   // node:net / node:tls / node:dns for the MongoDB driver, AsyncLocalStorage for per-request DB clients.
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
-  "vars": { "MONGODB_DB": "tether" }
+  // Keep the old *.workers.dev link alive alongside the custom domain.
+  "workers_dev": true,
+  "vars": { "MONGODB_DB": "tether" },
+  "routes": [
+    { "pattern": "tethersecure.com", "custom_domain": true },
+    { "pattern": "www.tethersecure.com", "custom_domain": true }
+  ]
   // Secrets (wrangler secret put): MONGODB_URI, TETHER_PEPPER
 }

@@ -50,18 +50,30 @@ export async function startRoom(root: HTMLElement) {
     setConn('off', 'Not joined');
     const form = $<HTMLFormElement>('[data-join-form]');
     const input = form.querySelector('input')!;
-    input.oninput = () => { input.value = input.value.replace(/\D/g, '').slice(0, 6); };
+    const msg = $('[data-join-msg]');
+    input.oninput = () => {
+      input.value = input.value.replace(/\D/g, '').slice(0, 6);
+      if (input.value) { msg.hidden = true; input.classList.remove('bad'); }
+    };
     form.onsubmit = async (e) => {
       e.preventDefault();
       if (input.value.length !== 6) return input.focus();
       try {
-        const me = await ensureName();
+        // Check the code before asking for a name, so a typo fails fast.
+        const info = await api('/api/session/check', { body: { otp: input.value } });
+        const me = await ensureName({ reason: info.host ? `You're joining ${info.host}'s session. They'll see this name.` : undefined });
         const res = await api('/api/session/join', { body: { otp: input.value, name: me.name, tag: me.tag } });
         membership.set(res.sessionId, res.member);
         if (res.sessionId !== sid) location.href = `/s/${res.sessionId}`;
         else location.reload();
       } catch (err: any) {
-        if (err.message !== 'cancelled') toast(err.message, { error: true });
+        if (err.message === 'cancelled') return;
+        // Keep the error on screen next to the field and clear it for a retry.
+        msg.textContent = err.message;
+        msg.hidden = false;
+        input.classList.add('bad');
+        input.value = '';
+        input.focus();
       }
     };
     input.focus();
