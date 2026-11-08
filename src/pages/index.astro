@@ -1,12 +1,61 @@
 ---
+import JsonLd from '../components/JsonLd.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import { faqJsonLd, homeFaqs } from '../content/faq';
+import { guides } from '../content/guides';
 import Layout from '../layouts/Layout.astro';
 export const prerender = true;
+
+const SITE = 'https://tethersecure.com';
+const app = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: 'Tether',
+  alternateName: 'Tether Secure',
+  url: SITE + '/',
+  description: 'Free web app to sync your clipboard, send text and securely share files between PCs, Mac and phones. Peer-to-peer, encrypted, no upload, no sign-up.',
+  applicationCategory: 'UtilitiesApplication',
+  operatingSystem: 'Windows, macOS, Linux, ChromeOS, Android, iOS',
+  browserRequirements: 'Requires a modern browser with WebRTC (Chrome, Edge, Firefox, Safari).',
+  image: SITE + '/og-image.png',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  featureList: [
+    'Sync clipboard between devices',
+    'Send and receive files up to 500 MB, peer-to-peer',
+    'Send text and links instantly',
+    'Connect Windows, Mac, Linux, Android and iPhone',
+    'Group connection of up to 4 devices',
+    'Join with a 6-digit code, invite link or QR code',
+    'End-to-end encrypted WebRTC transfer, no upload',
+  ],
+};
+const site = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Tether',
+  url: SITE + '/',
+};
+const org = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Tether',
+  url: SITE + '/',
+  logo: SITE + '/icon-512.png',
+};
 ---
 <Layout>
+  <Fragment slot="head">
+    <JsonLd data={app} />
+    <JsonLd data={site} />
+    <JsonLd data={org} />
+    <JsonLd data={faqJsonLd(homeFaqs)} />
+  </Fragment>
   <section class="hero wrap">
     <div class="hero-copy">
-      <p class="eyebrow"><span class="live-dot"></span> Clipboard &amp; files, shared between 2–4 devices</p>
-      <h1>Copy on one.<br /><span class="serif">Paste on the other.</span></h1>
+      <h1>
+        <span class="h1-kicker eyebrow"><span class="live-dot"></span> Tether: sync clipboard &amp; share files between 2–4 devices</span>
+        Copy on one.<br /><span class="serif">Paste on the other.</span>
+      </h1>
       <p class="lede">
         Link your laptop, your phone, or a friend's machine with a 6-digit code or a QR scan.
         What you copy on one shows up on the others, and files drop straight across. Browser to browser, nothing uploaded.
@@ -70,7 +119,8 @@ export const prerender = true;
     </div>
   </section>
 
-  <section class="steps wrap">
+  <section class="steps wrap" aria-labelledby="how-title">
+    <h2 id="how-title" class="steps-title eyebrow">How to tether your devices</h2>
     <article>
       <span class="num mono">01</span>
       <h3>Start</h3>
@@ -139,6 +189,101 @@ export const prerender = true;
     </div>
   </section>
 
+  <section class="about wrap" aria-labelledby="about-title">
+    <div class="about-head">
+      <p class="eyebrow">About Tether</p>
+      <h2 id="about-title">What is Tether? A secure <span class="serif">tether connection</span> between your devices.</h2>
+    </div>
+    <div class="about-body">
+      <p>
+        Tether is a free web app that links your computers and phone into one private session, so you can sync your clipboard,
+        send text and share files between them in seconds. There is nothing to download and no account to create: open
+        tethersecure.com on one device, start a session, and join from the other with a 6-digit code, an invite link or a QR scan.
+        From that moment on, whatever you copy or drop on one device can be pasted or saved on the others.
+      </p>
+
+      <h3>Sync your clipboard across Windows, Mac, Linux and phones</h3>
+      <p>
+        Most clipboard tools only work inside one ecosystem. Tether runs in the browser, so it gives you a shared clipboard across
+        every platform: connect Windows and Mac, a Linux workstation and a Chromebook, or an Android phone and an iPhone. Copy a
+        link, a command or a paragraph on your desktop, switch to the Tether tab, and it is on your laptop's clipboard, ready to
+        paste. Every clip also stays in a shared list for the session, so you can copy it again with a single click.
+      </p>
+
+      <h3>Share files securely, without uploading them</h3>
+      <p>
+        When you send a file with Tether, it is not uploaded to a cloud drive, an email server or a chat app. Tether files travel in small
+        encrypted pieces over a direct WebRTC connection from your browser to the other device's browser, where it appears with a
+        Save button. That makes Tether one of the simplest ways to securely share a file: there is no copy stored online, no public
+        link that could leak and nothing to clean up afterwards. You can send and receive files up to 500 MB each, in either
+        direction, between any of the connected devices.
+      </p>
+
+      <h3>Connect your PCs as a small group</h3>
+      <p>
+        A session is a group connection of up to four devices. Your work laptop, home PC and phone can all be tethered at once, or
+        you can link up with a teammate for a quick hand-off. Everyone sees who is online and, if they choose, which app they are
+        working in. Send text or files to the whole group, or drop a file on one person's card to send it only to them. The devices
+        do not need to share a Wi-Fi network: any PC that is online can join from anywhere over the internet.
+      </p>
+
+      <h3>Send text, send files, receive files: any direction</h3>
+      <p>
+        Use the box to type and send a message, press Ctrl+V on the page to send whatever is on your clipboard, or drag and drop
+        files anywhere in the window. On a phone, install Tether from the browser and it shows up in your Share menu, so you can tether
+        photos, PDFs and links straight from other apps. Turn on notifications and you will know the moment something arrives, even
+        when Tether is in the background.
+      </p>
+
+      <h3>Private by design</h3>
+      <p>
+        Every link between devices is encrypted with DTLS, the same standard that protects video calls in your browser, with fresh
+        keys for each connection. Tether's server only introduces the devices to each other and keeps the session's code and names;
+        it never sees your files. Join codes expire after ten minutes, and sessions are deleted after twelve hours of inactivity.
+        There are no ads, no trackers and no sign-up, just a display name saved in a cookie on your own device.
+      </p>
+
+      <h3>When to tether it</h3>
+      <p>
+        Developers use Tether to move commands, logs and code snippets between machines. Designers drop exports onto a colleague's PC.
+        Students send notes from a laptop to a phone, and anyone can move a screenshot from a Mac to a Windows PC without emailing
+        themselves. If you have ever wished for an AirDrop alternative that works between Windows, Android, Mac and iPhone, or a
+        quick way to make a PC-to-PC online connection without setting up a network share, just tether it.
+      </p>
+    </div>
+  </section>
+
+  <section class="faq-home wrap" id="faq" aria-labelledby="faq-title">
+    <div class="about-head">
+      <p class="eyebrow">FAQ</p>
+      <h2 id="faq-title">Frequently asked <span class="serif">questions.</span></h2>
+    </div>
+    <div class="faq-list">
+      {homeFaqs.map((f) => (
+        <details>
+          <summary>{f.q}</summary>
+          <p>{f.a}</p>
+        </details>
+      ))}
+    </div>
+  </section>
+
+  <section class="guides wrap" aria-labelledby="guides-title">
+    <div class="about-head">
+      <p class="eyebrow">Guides</p>
+      <h2 id="guides-title">More ways to <span class="serif">tether.</span></h2>
+    </div>
+    <div class="guides-grid">
+      {guides.map((g) => (
+        <a class="guide-card card" href={`/${g.slug}/`}>
+          <span class="eyebrow">{g.kicker}</span>
+          <strong>{g.h1}</strong>
+          <span class="muted">{g.description}</span>
+        </a>
+      ))}
+    </div>
+  </section>
+
   <section class="honest wrap">
     <div class="card honest-card">
       <div>
@@ -154,13 +299,7 @@ export const prerender = true;
     </div>
   </section>
 
-  <footer class="wrap foot muted">
-    <span class="mono">tether</span>
-    <nav class="foot-links" aria-label="Footer">
-      <a href="/privacy">Privacy &amp; security</a>
-      <span>Sessions end after 12 hours of inactivity.</span>
-    </nav>
-  </footer>
+  <SiteFooter />
 </Layout>
 
 <script>
@@ -185,6 +324,12 @@ export const prerender = true;
       if (e.message !== 'cancelled') toast(e.message, { error: true });
     }
   });
+
+  // Landing pages link to /?start=1: go straight into starting a session (name prompt first if needed).
+  if (new URLSearchParams(location.search).has('start')) {
+    history.replaceState(null, '', '/');
+    startBtn.click();
+  }
 
   function paintOtp() {
     const v = otpInput.value;
@@ -513,9 +658,43 @@ export const prerender = true;
   .honest li::before { content: ''; position: absolute; left: 0; top: 9px; width: 8px; height: 8px; border-radius: 2px; background: var(--accent); }
   .honest li b { color: var(--text); font-weight: 500; }
 
-  .foot { display: flex; justify-content: space-between; gap: 16px; padding-block: 40px; font-size: 13px; }
-  .foot-links { display: flex; gap: 20px; flex-wrap: wrap; }
-  .foot-links a { color: var(--text); text-underline-offset: 3px; }
+  /* ----------------------------------------------------- SEO content */
+  .h1-kicker { display: block; margin-bottom: 16px; font-weight: 400; line-height: 1.4; letter-spacing: 0.12em; }
+  .steps-title { grid-column: 1 / -1; margin: 0 0 -8px; font-weight: 400; }
+
+  .about, .faq-home, .guides {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: 24px 56px;
+    padding-block: 56px;
+    border-top: 1px solid var(--line);
+  }
+  .about-head { position: sticky; top: 24px; align-self: start; }
+  .about-head h2 { margin: 12px 0 0; font-size: clamp(28px, 3.4vw, 40px); line-height: 1.05; letter-spacing: -0.04em; font-weight: 600; }
+  .about-head h2 .serif { color: var(--accent-text); font-size: 1.1em; }
+  .about-body { max-width: 68ch; }
+  .about-body p { color: var(--muted); font-size: 16px; line-height: 1.7; margin: 0 0 18px; text-wrap: pretty; }
+  .about-body h3 { margin: 30px 0 8px; font-size: 19px; letter-spacing: -0.02em; font-weight: 600; }
+
+  .faq-list details { border-bottom: 1px solid var(--line); padding: 16px 0; }
+  .faq-list details:first-child { border-top: 1px solid var(--line); }
+  .faq-list summary { cursor: pointer; font-weight: 500; font-size: 16.5px; list-style: none; display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+  .faq-list summary::-webkit-details-marker { display: none; }
+  .faq-list summary::after { content: '+'; flex: none; color: var(--accent-text); font: 500 20px var(--font-mono); transition: rotate 200ms var(--ease-out); }
+  .faq-list details[open] summary::after { rotate: 45deg; }
+  .faq-list details p { margin: 10px 0 0; color: var(--muted); line-height: 1.65; max-width: 68ch; }
+
+  .guides-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .guide-card { display: grid; gap: 6px; padding: 18px; text-decoration: none; border-radius: var(--r); transition: border-color 150ms, transform 200ms var(--ease-out); }
+  .guide-card:hover { border-color: var(--accent-text); transform: translateY(-2px); }
+  .guide-card strong { font-size: 16.5px; letter-spacing: -0.02em; }
+  .guide-card .muted { font-size: 13px; line-height: 1.5; }
+
+  @media (max-width: 900px) {
+    .about, .faq-home, .guides { grid-template-columns: 1fr; padding-block: 40px; }
+    .about-head { position: static; }
+  }
+  @media (max-width: 560px) { .guides-grid { grid-template-columns: 1fr; } }
 
   @media (max-width: 1080px) {
     .hero { grid-template-columns: 1fr; gap: 40px; }
@@ -535,6 +714,5 @@ export const prerender = true;
     .device-a { justify-self: start; rotate: -1.5deg; }
     .device-b { justify-self: end; rotate: 1.5deg; }
     .packet { display: none; }
-    .foot { flex-direction: column; }
   }
 </style>

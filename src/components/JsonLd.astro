@@ -1,0 +1,6 @@
+---
+/** Structured data for search engines. `<` is escaped so content can never close the script tag early. */
+interface Props { data: unknown }
+const json = JSON.stringify(Astro.props.data).replace(/</g, '\\u003c');
+---
+<script type="application/ld+json" set:html={json} />

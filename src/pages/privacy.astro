@@ -1,8 +1,9 @@
 ---
+import SiteFooter from '../components/SiteFooter.astro';
 import Layout from '../layouts/Layout.astro';
 export const prerender = true;
 ---
-<Layout title="Privacy & security — Tether" description="What Tether stores, what it never sees, and how transfers between your devices are protected.">
+<Layout title="Privacy & Security: How Tether Protects Your Files" description="What Tether stores, what it never sees, and how clipboard sync and file transfers between your devices are encrypted, peer-to-peer and never uploaded.">
   <article class="wrap doc">
     <p class="eyebrow">Privacy &amp; security</p>
     <h1>What we see, and what we <span class="serif">never do.</span></h1>
@@ -45,6 +46,7 @@ export const prerender = true;
 
     <p class="back"><a href="/">← Back to Tether</a></p>
   </article>
+  <SiteFooter />
 </Layout>
 
 <style>

@@ -5,7 +5,7 @@ const id = String(Astro.params.id ?? '').toUpperCase();
 if (!/^[0-9A-Z]{8}$/.test(id)) return Astro.redirect('/');
 const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
 ---
-<Layout title={`Session ${pretty} — Tether`}>
+<Layout title={`Session ${pretty} — Tether`} noindex>
   <div slot="center" class="session-pill pill mono" data-conn>
     <span class="dot"></span>
     <span data-conn-label>Connecting…</span>

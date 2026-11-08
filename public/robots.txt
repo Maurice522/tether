@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+# Private session rooms, the share hand-off and the API aren't content.
+Disallow: /s/
+Disallow: /share
+Disallow: /api/
+
+Sitemap: https://tethersecure.com/sitemap.xml

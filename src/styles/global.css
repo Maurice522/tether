@@ -140,6 +140,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   font-size: 14px;
   letter-spacing: -0.005em;
   white-space: nowrap;
+  text-decoration: none;
   transition: transform 160ms var(--ease-out), background 160ms, border-color 160ms, box-shadow 200ms;
   user-select: none;
 }
