@@ -31,16 +31,23 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
         <div class="panel card mesh-panel">
           <header class="panel-head">
             <div>
-              <p class="eyebrow">Session <span class="mono">{pretty}</span></p>
+              <p class="eyebrow">Who's here</p>
               <h2><span data-count>1</span><span class="muted">/4</span> linked</h2>
             </div>
-            <button class="btn btn-sm" data-leave>
+            <button class="btn btn-sm leave-btn" data-leave title="Leave this session">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></svg>
-              Leave
+              <span data-leave-label>Leave</span>
             </button>
           </header>
           <div class="constellation" data-constellation>
             <svg class="links" viewBox="0 0 100 100" preserveAspectRatio="none" data-links></svg>
+          </div>
+          <div class="alone" data-alone hidden>
+            <div class="qr qr-lg" data-qr-big aria-label="QR code with the invite link" role="img"></div>
+            <div class="alone-copy">
+              <p class="alone-title">Waiting for someone to join<span class="dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></p>
+              <p class="muted">Scan this with your phone's camera to join instantly, or share the code or link.</p>
+            </div>
           </div>
         </div>
 
@@ -70,7 +77,14 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>
               Copy invite link
             </button>
+            <button class="btn icon-btn" data-qr-toggle aria-expanded="false" title="Show a QR code to scan with a phone" aria-label="Show QR code">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h3v3"/></svg>
+            </button>
             <button class="btn" data-share hidden>Share…</button>
+          </div>
+          <div class="qr-pop" data-qr-pop hidden>
+            <div class="qr" data-qr aria-label="QR code with the invite link" role="img"></div>
+            <p class="fine muted">Point a phone camera at this to join without typing.</p>
           </div>
           <p class="fine muted">The invite link skips the code. Anyone with it can join while there's a free seat.</p>
         </div>
@@ -81,17 +95,34 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
               <p class="eyebrow">Shared clipboard</p>
               <h2>Clips</h2>
             </div>
+            <div class="clips-tools">
+              <button class="btn btn-ghost btn-sm icon-btn" type="button" data-notify title="Notify me when something arrives while I'm in another app" aria-label="Notifications" aria-pressed="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9M10 20a2 2 0 0 0 4 0"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-sm" type="button" data-clear-clips hidden title="Clear the list on this device">Clear</button>
             <label class="switch" title="Pause syncing on this device">
               <input type="checkbox" data-sync-toggle checked />
               <span class="track"><span class="thumb"></span></span>
               <span class="switch-label" data-sync-label>Syncing</span>
             </label>
+            </div>
           </header>
 
           <div class="mode" data-mode></div>
 
+          <div class="share-tray" data-share-tray hidden>
+            <div class="share-tray-body">
+              <p class="eyebrow">Shared from another app</p>
+              <p class="share-tray-what" data-share-what></p>
+            </div>
+            <div class="share-tray-actions">
+              <button type="button" class="btn btn-sm btn-ghost" data-share-discard>Discard</button>
+              <button type="button" class="btn btn-sm btn-accent" data-share-send>Send to everyone</button>
+            </div>
+          </div>
+
           <form class="composer" data-composer>
-            <textarea rows="2" placeholder="Type or paste here, then press Enter to send" data-composer-input aria-label="Text to send"></textarea>
+            <textarea rows="2" placeholder="Type or paste here. Enter sends, Shift+Enter for a new line." data-composer-input aria-label="Text to send"></textarea>
             <div class="composer-actions">
               <div class="composer-tools">
                 <button type="button" class="btn btn-sm" data-send-clipboard title="Send what's on your clipboard">
@@ -149,7 +180,8 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
 
 <style is:global>
   .session-pill { font-size: 12px; }
-  @media (max-width: 640px) { .session-pill { display: none; } }
+  /* Phones keep the status, just smaller: it says whether things will arrive. */
+  @media (max-width: 640px) { .session-pill { font-size: 11px; height: 26px; padding: 0 9px; max-width: 46vw; overflow: hidden; } }
 
   .room { padding-bottom: 64px; }
   .loading { display: grid; place-items: center; min-height: 50vh; }
@@ -403,9 +435,39 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
   .custom-row { display: flex; gap: 8px; }
   .picker > .btn-ghost { justify-self: start; margin-left: -8px; }
 
+  /* ---------------------------------------------------- waiting + QR */
+  .alone { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 22px; align-items: center; margin-top: 18px; padding: 8px 4px; }
+  .alone-title { margin: 0 0 6px; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+  .alone p { margin: 0; }
+  .alone .muted { font-size: 13.5px; max-width: 34ch; }
+  .dots i { font-style: normal; animation: dot 1.4s infinite; opacity: 0.2; }
+  .dots i:nth-child(2) { animation-delay: 0.2s; } .dots i:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dot { 40% { opacity: 1; } }
+  .qr { background: #fff; border-radius: 14px; padding: 10px; line-height: 0; box-shadow: 0 0 0 1px var(--line); }
+  .qr svg { width: 100%; height: auto; display: block; }
+  .qr-lg { width: 168px; }
+  .qr-pop { display: flex; align-items: center; gap: 14px; margin: -2px 0 14px; animation: sheet-in 300ms var(--ease-spring) both; }
+  .qr-pop .qr { width: 132px; flex: none; }
+  [data-qr-toggle][aria-expanded="true"] { border-color: var(--accent-text); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+  .share-tray { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--accent-text); background: color-mix(in oklab, var(--accent) 10%, var(--surface)); animation: sheet-in 300ms var(--ease-spring) both; }
+  .share-tray p { margin: 0; }
+  .share-tray-what { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .share-tray-actions { display: flex; gap: 6px; }
+  .clips-tools { display: flex; align-items: center; gap: 2px; }
+  [data-notify][aria-pressed="true"] { color: var(--accent-text); background: var(--surface-2); }
+  .leave-btn.confirm { background: var(--danger); border-color: transparent; color: #fff; }
+
   @media (max-width: 900px) {
     .room-grid { grid-template-columns: 1fr; }
-    .room-grid > .col:last-child { order: -1; }
+    /* Flatten the two columns so panels can be ordered by what matters on a phone:
+       the clips first, then who's here, then the invite (which jumps to the top while you're alone). */
+    .room-grid > .col { display: contents; }
+    .room-grid .clips { order: 1; }
+    .room-grid .mesh-panel { order: 2; }
+    .room-grid .members { order: 3; }
+    .room-grid .invite { order: 4; }
+    .room-grid.is-alone .invite { order: 0; }
   }
   @media (max-width: 520px) {
     .panel { padding: 16px; }
@@ -413,7 +475,12 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
     .constellation { height: 220px; }
     .node { width: 96px; }
     .node .avatar { width: 48px; height: 48px; border-radius: 16px; font-size: 16px; }
-    .member { grid-template-columns: auto minmax(0, 1fr); }
-    .member .conn { grid-row: auto; grid-column: 2; justify-self: start; }
+    .member { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
+    .member .avatar { grid-row: span 3; }
+    .member .top { flex-wrap: wrap; }
+    .member .conn { grid-row: auto; grid-column: 2; justify-self: start; display: flex; align-items: center; gap: 4px; }
+    .alone { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+    .alone .muted { margin-inline: auto; }
+    .qr-pop { flex-direction: column; align-items: flex-start; }
   }
 </style>

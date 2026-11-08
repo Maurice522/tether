@@ -1,0 +1,61 @@
+---
+import Layout from '../layouts/Layout.astro';
+export const prerender = true;
+---
+<Layout title="Share to Tether">
+  <section class="wrap share">
+    <div class="card share-card">
+      <p class="eyebrow">Share to Tether</p>
+      <h1 data-title>Finding your session…</h1>
+      <p class="muted" data-sub></p>
+      <div class="share-actions" data-actions hidden>
+        <a class="btn btn-accent" href="/">Start a session</a>
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  import { membership } from '../scripts/ui';
+
+  const title = document.querySelector('[data-title]')!;
+  const sub = document.querySelector('[data-sub]')!;
+  const actions = document.querySelector<HTMLElement>('[data-actions]')!;
+
+  async function hasShare() {
+    try {
+      const cache = await caches.open('tether-share');
+      return !!(await cache.match('/share-index'));
+    } catch { return false; }
+  }
+
+  (async () => {
+    const lost = new URLSearchParams(location.search).has('lost');
+    if (lost || !(await hasShare())) {
+      title.textContent = lost ? 'That share didn’t come through' : 'Nothing to share';
+      sub.textContent = lost
+        ? 'Tether was still installing the first time. Share again and it’ll work from now on.'
+        : 'Use your phone’s Share button in any app and pick Tether.';
+      actions.hidden = false;
+      return;
+    }
+    // The room you used most recently gets it; it asks before sending anything.
+    let last: { sid: string } | null = null;
+    try { last = JSON.parse(localStorage.getItem('tether:last') ?? 'null'); } catch { /* ignore */ }
+    if (last && membership.get(last.sid)) {
+      location.replace(`/s/${last.sid}`);
+      return;
+    }
+    title.textContent = 'Join a session first';
+    sub.textContent = 'Start or join a session, and what you shared will be waiting there, ready to send.';
+    actions.hidden = false;
+  })();
+</script>
+
+<style>
+  .share { padding-block: 14vh; }
+  .share-card { max-width: 460px; margin: 0 auto; padding: 30px; display: grid; gap: 10px; }
+  .share-card h1 { margin: 0; font-size: 28px; letter-spacing: -0.03em; font-weight: 600; }
+  .share-card p { margin: 0; }
+  .share-actions { margin-top: 8px; }
+</style>

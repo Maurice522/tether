@@ -31,6 +31,8 @@ export interface FileItem {
   /** Who didn't get it, for partial/failed sends. */
   missed?: string[];
   url?: string;
+  /** The receiver pressed Save (so leaving/reloading won't lose it). */
+  saved?: boolean;
 }
 
 interface Incoming { item: FileItem; chunks: ArrayBuffer[]; got: number }

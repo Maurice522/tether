@@ -4,7 +4,7 @@ import '../styles/global.css';
 interface Props { title?: string; description?: string; wide?: boolean }
 const {
   title = 'Tether — copy on one, paste on the other',
-  description = 'Link two to four computers with a 6-digit code and share one clipboard. Peer-to-peer, no install.',
+  description = 'Share your clipboard and send files between 2–4 devices with a 6-digit code or QR scan. Peer-to-peer, encrypted, nothing uploaded, no sign-up.',
 } = Astro.props;
 ---
 <!doctype html>
@@ -17,6 +17,9 @@ const {
     <meta name="theme-color" content="#0a0b0c" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#f2f1ec" media="(prefers-color-scheme: light)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="canonical" href={new URL(Astro.url.pathname, "https://tethersecure.com")} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet" />
@@ -75,6 +78,8 @@ const {
     <script>
       import { ensureName, paintIdentity } from '../scripts/identity';
       paintIdentity();
+      // Installable app + "Share → Tether" from other apps (see public/sw.js).
+      if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
       document.querySelectorAll('[data-rename]').forEach((b) =>
         b.addEventListener('click', () => ensureName({ force: true, reason: 'Changes apply to sessions you join from now on.' }).catch(() => {})),
       );

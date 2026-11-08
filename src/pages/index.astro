@@ -5,11 +5,11 @@ export const prerender = true;
 <Layout>
   <section class="hero wrap">
     <div class="hero-copy">
-      <p class="eyebrow"><span class="live-dot"></span> Clipboard, shared between 2–4 computers</p>
+      <p class="eyebrow"><span class="live-dot"></span> Clipboard &amp; files, shared between 2–4 devices</p>
       <h1>Copy on one.<br /><span class="serif">Paste on the other.</span></h1>
       <p class="lede">
-        Link your laptop, your desktop, or a friend's machine with a 6-digit code.
-        What you copy on one shows up on the others. It goes straight from browser to browser.
+        Link your laptop, your phone, or a friend's machine with a 6-digit code or a QR scan.
+        What you copy on one shows up on the others, and files drop straight across. Browser to browser, nothing uploaded.
       </p>
 
       <div class="dock card">
@@ -156,7 +156,10 @@ export const prerender = true;
 
   <footer class="wrap foot muted">
     <span class="mono">tether</span>
-    <span>Sessions end after 12 hours of inactivity.</span>
+    <nav class="foot-links" aria-label="Footer">
+      <a href="/privacy">Privacy &amp; security</a>
+      <span>Sessions end after 12 hours of inactivity.</span>
+    </nav>
   </footer>
 </Layout>
 
@@ -244,7 +247,7 @@ export const prerender = true;
   });
 
   // Hero demo: cycle a few clips through the cable.
-  const samples = ['git push origin main', 'https://figma.com/file/x9…', 'Standup moved to 4:30', 'npx wrangler deploy', '#c8f53a'];
+  const samples = ['git push origin main', '📄 invoice-march.pdf · 2.4 MB', 'https://figma.com/file/x9…', 'Standup moved to 4:30', '🖼 screenshot.png · 812 KB', '#c8f53a'];
   const src = document.querySelector<HTMLElement>('[data-demo-src]')!;
   const packet = document.querySelector<HTMLElement>('[data-demo-packet]')!;
   const dst = document.querySelector<HTMLElement>('[data-demo-dst]')!;
@@ -511,6 +514,8 @@ export const prerender = true;
   .honest li b { color: var(--text); font-weight: 500; }
 
   .foot { display: flex; justify-content: space-between; gap: 16px; padding-block: 40px; font-size: 13px; }
+  .foot-links { display: flex; gap: 20px; flex-wrap: wrap; }
+  .foot-links a { color: var(--text); text-underline-offset: 3px; }
 
   @media (max-width: 1080px) {
     .hero { grid-template-columns: 1fr; gap: 40px; }
@@ -524,8 +529,12 @@ export const prerender = true;
     .dock-or::before { inset: 50% 0; border-left: 0; border-top: 1px dashed var(--line-strong); }
     .dock-or span { padding: 0 10px; }
     .steps { grid-template-columns: 1fr; gap: 24px; }
-    .stage { aspect-ratio: 1.25; }
-    .device { width: 70%; }
+    /* Phones: stack the two devices instead of overlapping them; the cable alone tells the story. */
+    .stage { aspect-ratio: auto; display: grid; gap: 34px; padding: 4px 0 8px; }
+    .device { position: relative; inset: auto; width: 88%; transform: none; }
+    .device-a { justify-self: start; rotate: -1.5deg; }
+    .device-b { justify-self: end; rotate: 1.5deg; }
+    .packet { display: none; }
     .foot { flex-direction: column; }
   }
 </style>

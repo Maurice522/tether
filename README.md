@@ -2,7 +2,7 @@
 
 Share one clipboard, and send files, across 2–4 computers. Start a session, share the 6-digit code (or an invite link that skips the code), and whatever gets copied lands on everyone else's clipboard.
 
-**Stack:** Astro 7 (SSR) · Cloudflare Workers (via `@astrojs/cloudflare`) · MongoDB Atlas · WebRTC data channels.
+**Stack:** Astro 7 (SSR) · Cloudflare Workers + Durable Objects (`@astrojs/cloudflare`) · WebRTC data channels. Live at https://tethersecure.com
 
 ## How it works
 

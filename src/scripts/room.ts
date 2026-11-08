@@ -4,6 +4,7 @@ import { ensureName, hueFor, initials } from './identity';
 import { FileTransfers, formatBytes, type FileItem } from './files';
 import { Mesh, type PeerState } from './mesh';
 import { connectSpotify, disconnectSpotify, nowPlaying, spotifyAvailable, spotifyConnected } from './spotify';
+import { renderSVG } from 'uqr';
 import { api, h, membership, timeAgo, toast, type Membership } from './ui';
 
 const MAX_CLIP = 64 * 1024;
@@ -182,7 +183,10 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     if (prev !== item.status && item.dir === 'in') {
       const who = nameOf(item.from)?.name ?? 'Someone';
       if (!prev) pulse(item.from, myId);
-      if (item.status === 'done') toast(`${who} sent ${item.name}`, { icon: '↓' });
+      if (item.status === 'done') {
+        toast(`${who} sent ${item.name}`, { icon: '↓' });
+        notify(`${who} sent a file`, `${item.name} · tap to open Tether and save it`);
+      }
       if (item.status === 'failed') toast(`${item.name} from ${who} was interrupted`, { error: true });
     }
     if (prev !== item.status && item.dir === 'out' && item.status === 'partial') {
@@ -327,6 +331,8 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       inviteToken = msg.invite;
       if (firstSync) {
         welcome();
+        try { localStorage.setItem('tether:last', JSON.stringify({ sid, at: Date.now() })); } catch { /* private mode */ }
+        void loadShared();
       } else {
         for (const m of members) if (!prevIds.has(m.id) && m.id !== myId) {
           toast(`${m.name} joined`, { icon: '→' });
@@ -437,6 +443,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
         document.title = `● ${clip.fromName} sent a clip — Tether`;
       }
     }
+    notify(`${clip.fromName} sent a clip`, clip.text.slice(0, 120));
     persistClips();
     renderClips();
   }
@@ -576,6 +583,106 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
 
   const inviteUrl = () => `${location.origin}/s/${sid}#invite=${inviteToken}`;
 
+  const qrToggle = $<HTMLButtonElement>('[data-qr-toggle]');
+  qrToggle.addEventListener('click', () => {
+    const pop = $('[data-qr-pop]');
+    pop.hidden = !pop.hidden;
+    qrToggle.setAttribute('aria-expanded', String(!pop.hidden));
+    renderQr();
+  });
+
+  /* ------------------------------------------- shared from another app */
+  // The service worker parks "Share → Tether" payloads in Cache Storage; we offer them here and
+  // only send when the user says so (a share sheet tap shouldn't broadcast on its own).
+  interface SharedIndex { text: string; files: { key: string; name: string; type: string; size: number }[] }
+  let shared: SharedIndex | null = null;
+  const tray = $('[data-share-tray]');
+
+  async function sharedCache() {
+    try { return await caches.open('tether-share'); } catch { return null; }
+  }
+  async function loadShared() {
+    const cache = await sharedCache();
+    const res = await cache?.match('/share-index');
+    if (!res) return;
+    shared = await res.json();
+    const parts: string[] = [];
+    if (shared!.files.length) parts.push(shared!.files.length === 1 ? `${shared!.files[0].name} (${formatBytes(shared!.files[0].size)})` : `${shared!.files.length} files`);
+    if (shared!.text) parts.push(shared!.text.length > 80 ? shared!.text.slice(0, 80) + '…' : shared!.text);
+    $('[data-share-what]').textContent = parts.join(' · ');
+    tray.hidden = false;
+  }
+  async function clearShared() {
+    shared = null;
+    tray.hidden = true;
+    const cache = await sharedCache();
+    if (cache) await Promise.all((await cache.keys()).map((k) => cache.delete(k)));
+  }
+  $('[data-share-discard]').addEventListener('click', () => void clearShared());
+  $('[data-share-send]').addEventListener('click', async () => {
+    if (!shared) return;
+    if (!members.some((m) => m.id !== myId && m.online)) { toast("Nobody else is here yet. It'll wait until someone joins."); return; }
+    const cache = await sharedCache();
+    const list: File[] = [];
+    for (const f of shared.files) {
+      const r = await cache?.match(f.key);
+      if (r) list.push(new File([await r.blob()], f.name, { type: f.type }));
+    }
+    if (shared.text) share(shared.text, 'typed');
+    if (list.length) sendFiles(list);
+    await clearShared();
+  });
+
+  /* --------------------------------------------------------- housekeeping */
+  let leaving = false;
+  const unsavedFiles = () => files.items.some((f) => f.dir === 'in' && f.status === 'done' && !f.saved);
+  // Received files only live in this tab: warn before a reload or close throws them away.
+  window.addEventListener('beforeunload', (e) => {
+    if (leaving || !unsavedFiles()) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  $('[data-clear-clips]').addEventListener('click', () => {
+    clips = [];
+    pending = null;
+    files.items = files.items.filter((f) => f.status === 'active');
+    persistClips();
+    renderClips();
+  });
+
+  // Optional system notifications for things that arrive while you're in another app.
+  const notifyBtn = $<HTMLButtonElement>('[data-notify]');
+  const canNotify = 'Notification' in window;
+  let notifyOn = canNotify && Notification.permission === 'granted' && localStorage.getItem('tether:notify') === '1';
+  const paintNotify = () => {
+    notifyBtn.setAttribute('aria-pressed', String(notifyOn));
+    notifyBtn.title = notifyOn ? 'Notifications on: tap to turn off' : "Notify me when something arrives while I'm in another app";
+  };
+  notifyBtn.hidden = !canNotify;
+  paintNotify();
+  notifyBtn.addEventListener('click', async () => {
+    if (notifyOn) notifyOn = false;
+    else {
+      const p = Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission;
+      notifyOn = p === 'granted';
+      if (p === 'denied') toast('Notifications are blocked for this site. Allow them from the lock icon in the address bar.', { error: true });
+    }
+    try { localStorage.setItem('tether:notify', notifyOn ? '1' : '0'); } catch { /* private mode */ }
+    paintNotify();
+    if (notifyOn) toast("You'll get a notification when something arrives", { icon: '🔔' });
+  });
+
+  function notify(title: string, body: string) {
+    if (!notifyOn || (document.visibilityState === 'visible' && document.hasFocus())) return;
+    const opts = { body, tag: `tether-${sid}`, icon: '/icon-192.png' };
+    // Android only shows notifications through a service worker; desktop works either way.
+    navigator.serviceWorker?.getRegistration().then((reg) => {
+      if (reg) return reg.showNotification(title, opts);
+      new Notification(title, opts);
+    }).catch(() => { try { new Notification(title, opts); } catch { /* unsupported */ } });
+  }
+
   async function copyInvite() {
     if (!inviteToken) return;
     if (await writeClipboard(inviteUrl())) {
@@ -605,7 +712,25 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     } catch (err: any) { toast(err.message, { error: true }); }
   });
 
-  $('[data-leave]').addEventListener('click', async () => {
+  // Leave is two-step: one tap arms it for 3 s, a second tap leaves. No accidental exits.
+  let leaveArmed: ReturnType<typeof setTimeout> | undefined;
+  const leaveBtn = $<HTMLButtonElement>('[data-leave]');
+  const leaveLabel = $('[data-leave-label]');
+  function disarmLeave() {
+    clearTimeout(leaveArmed);
+    leaveArmed = undefined;
+    leaveBtn.classList.remove('confirm');
+    leaveLabel.textContent = 'Leave';
+  }
+  leaveBtn.addEventListener('click', async () => {
+    if (!leaveArmed) {
+      leaveBtn.classList.add('confirm');
+      leaveLabel.textContent = unsavedFiles() ? 'Unsaved files will be lost. Tap again' : 'Tap again to leave';
+      leaveArmed = setTimeout(disarmLeave, 3000);
+      return;
+    }
+    disarmLeave();
+    leaving = true;
     ended = true;
     clearTimeout(retryTimer);
     mesh.close();
@@ -619,10 +744,30 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
   /* ============================================================ rendering */
 
   function renderAll() {
+    renderAlone();
     renderConn();
     renderConstellation();
     renderMembers();
     renderTimer();
+  }
+
+  /** While nobody else is here, swap the empty diagram for a big QR, and (on phones) lift the invite to the top. */
+  function renderAlone() {
+    const alone = !members.some((m) => m.id !== myId);
+    root.querySelector('.room-grid')!.classList.toggle('is-alone', alone);
+    $('[data-alone]').hidden = !alone;
+    $('[data-constellation]').hidden = alone;
+    renderQr();
+  }
+
+  let qrFor = '';
+  function renderQr() {
+    if (!inviteToken) return;
+    const url = inviteUrl();
+    if (url === qrFor) return;
+    qrFor = url;
+    const svg = renderSVG(url, { border: 1, whiteColor: '#fff', blackColor: '#0a0b0c' });
+    root.querySelectorAll('[data-qr], [data-qr-big]').forEach((el) => (el.innerHTML = svg));
   }
 
   function renderConn() {
@@ -781,7 +926,6 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       h('div', { class: 'top' },
         h('span', { class: 'who' }, m.name, h('span', { class: 'tag' }, `#${m.tag}`)),
         isMe && h('span', { class: 'badge you' }, 'You'),
-        m.host && h('span', { class: 'badge' }, 'Host'),
         isMe || !m.online ? null : h('span', { class: 'dot' + (m.status.focused ? ' on' : ' away'), title: presence }),
       ),
       h('div', { class: 'conn' }, conn,
@@ -792,11 +936,12 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
 
   function sendFileBtn(m: PublicMember) {
     const b = h('button', {
-      class: 'btn btn-sm btn-ghost icon-btn', type: 'button',
-      title: `Send a file to ${m.name}`, 'aria-label': `Send a file to ${m.name}`,
+      class: 'btn btn-sm btn-ghost send-to', type: 'button',
+      title: `Send a file to ${m.name}`,
       onclick: () => pickFiles(m.id),
     });
     b.innerHTML = ICON.clip;
+    b.append('Send file');
     return b;
   }
 
@@ -847,6 +992,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
 
   function renderClips() {
     const host = $('[data-clips]');
+    $('[data-clear-clips]').hidden = !clips.length && !files.items.some((f) => f.status !== 'active');
     if (!clips.length && !files.items.length) {
       clipEls.clear();
       host.replaceChildren(h('li', { class: 'clip-empty' },
@@ -928,6 +1074,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       action = h('a', { class: 'btn btn-sm btn-accent', href: f.url, download: f.name, title: `Save ${f.name}` });
       action.innerHTML = ICON.download;
       action.append('Save');
+      action.addEventListener('click', () => { f.saved = true; });
     }
     return h('li', { class: `clip file ${f.dir}${enter ? ' enter' : ''}` },
       h('div', { class: 'clip-meta' },
