@@ -64,7 +64,7 @@ export const guides: Guide[] = [
         list: [
           'Clips travel over a direct, encrypted WebRTC connection between your devices.',
           'Nothing is stored on a server; your clip history lives only in your browser tab.',
-          'No account, no email, no tracking. Sessions disappear after 12 hours of inactivity.',
+          'No account and no email. Sessions disappear after 12 hours of inactivity.',
         ],
       },
     ],
