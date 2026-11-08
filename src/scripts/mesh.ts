@@ -10,6 +10,8 @@ export type PeerState = 'connecting' | 'open' | 'failed';
 export interface MeshEvents {
   signal(to: string, type: 'offer' | 'answer', data: RTCSessionDescriptionInit): void;
   message(from: string, msg: any): void;
+  /** Raw file chunks; framing lives in the JSON messages around them (channel is ordered). */
+  binary(from: string, data: ArrayBuffer): void;
   state(peerId: string, state: PeerState): void;
 }
 
@@ -88,6 +90,12 @@ export class Mesh {
     try { dc.send(JSON.stringify(msg)); return true; } catch { return false; }
   }
 
+  /** The open data channel to a peer, for callers that need backpressure (file transfers). */
+  channel(peerId: string): RTCDataChannel | null {
+    const dc = this.peers.get(peerId)?.dc;
+    return dc && dc.readyState === 'open' ? dc : null;
+  }
+
   close() {
     for (const id of [...this.peers.keys()]) this.drop(id);
   }
@@ -110,9 +118,11 @@ export class Mesh {
 
   private wire(peerId: string, peer: Peer, dc: RTCDataChannel) {
     peer.dc = dc;
+    dc.binaryType = 'arraybuffer';
     dc.addEventListener('open', () => this.setState(peerId, peer, 'open'));
     dc.addEventListener('close', () => { if (this.peers.get(peerId) === peer) this.setState(peerId, peer, 'failed'); });
     dc.addEventListener('message', (e) => {
+      if (e.data instanceof ArrayBuffer) { this.on.binary(peerId, e.data); return; }
       try { this.on.message(peerId, JSON.parse(e.data)); } catch { /* ignore junk */ }
     });
   }

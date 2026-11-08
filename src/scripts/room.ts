@@ -1,6 +1,7 @@
 import type { MemberStatus, Music, PublicMember } from '../lib/types';
 import { detectReadMode, readClipboard, writeClipboard, type ReadMode } from './clipboard';
 import { ensureName, hueFor, initials } from './identity';
+import { FileTransfers, formatBytes, type FileItem } from './files';
 import { Mesh, type PeerState } from './mesh';
 import { connectSpotify, disconnectSpotify, nowPlaying, spotifyAvailable, spotifyConnected } from './spotify';
 import { api, h, membership, timeAgo, toast, type Membership } from './ui';
@@ -28,6 +29,8 @@ const ICON = {
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>',
   bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 4 14h7l-1 7 9-11h-7z"/></svg>',
   hand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/></svg>',
+  clip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m20 11.5-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>',
+  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
   spotify: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#1ed760"/><path d="M7 9.5c3.5-1 7.5-.7 10.5 1M7.6 12.6c3-.8 6.2-.5 8.6.9M8.2 15.5c2.4-.6 4.8-.4 6.8.7" stroke="#000" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>',
 };
 
@@ -125,6 +128,9 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
   let positions = new Map<string, [number, number]>();
   let constellationKey = '';
   const renderedClips = new Set<string>();
+  let clipsRenderQueued = false;
+  /** Keyed like the member cards: an item is rebuilt only when what it shows changes. */
+  const clipEls = new Map<string, { key: string; el: HTMLElement }>();
   /** Keyed cache so a card is only rebuilt when its own data changes (keeps clicks from landing on detached nodes). */
   const memberCards = new Map<string, { key: string; el: HTMLElement }>();
 
@@ -138,18 +144,103 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       schedule(0);
     },
     message(from, msg) {
+      if (files.message(from, msg)) return;
       if (msg?.t === 'clip') receive(from, msg, 'p2p');
       else if (msg?.t === 'status') {
         const m = nameOf(from);
         if (m) { m.status = msg.status; renderConstellation(); renderMembers(); }
       }
     },
+    binary(from, data) {
+      files.binary(from, data);
+    },
     state(peerId, state) {
       peerState.set(peerId, state);
+      if (state !== 'open') files.peerGone(peerId);
       if (state === 'open') mesh.send(peerId, { t: 'status', status: myStatus() });
       renderAll();
       schedule(state === 'open' ? 800 : 0);
     },
+  });
+
+  /* ----------------------------------------------------------------- files */
+  const fileStatus = new Map<string, FileItem['status']>();
+  const files = new FileTransfers(mesh, myId, (item) => {
+    const prev = fileStatus.get(item.id);
+    fileStatus.set(item.id, item.status);
+    if (prev !== item.status && item.dir === 'in') {
+      const who = nameOf(item.from)?.name ?? 'Someone';
+      if (!prev) pulse(item.from, myId);
+      if (item.status === 'done') toast(`${who} sent ${item.name}`, { icon: '↓' });
+      if (item.status === 'failed') toast(`${item.name} from ${who} was interrupted`, { error: true });
+    }
+    if (prev !== item.status && item.dir === 'out' && item.status === 'partial') {
+      toast(`${item.name} didn't reach ${item.missed!.map((id) => nameOf(id)?.name ?? 'someone').join(', ')}`, { error: true });
+    }
+    scheduleClipsRender();
+  });
+
+  /** Send to everyone online, or just `only`. Files need a direct link: they never go through the server. */
+  function sendFiles(list: FileList | File[], only?: string) {
+    const picked = [...list];
+    if (!picked.length) return;
+    const targets = members.filter((m) => m.id !== myId && m.online && (!only || m.id === only));
+    if (!targets.length) { toast(only ? "They're offline right now." : 'Nobody else is online yet.', { error: true }); return; }
+    const direct = targets.filter((m) => mesh.channel(m.id));
+    const indirect = targets.filter((m) => !mesh.channel(m.id));
+    if (!direct.length) {
+      toast("Files only travel over a direct link, and there isn't one yet. Try again in a moment.", { error: true });
+      return;
+    }
+    let queued = 0;
+    for (const file of picked) {
+      if (files.send(file, direct.map((m) => m.id))) {
+        queued++;
+        for (const m of direct) pulse(myId, m.id);
+      } else toast(`${file.name} is over 500 MB, too big to send.`, { error: true });
+    }
+    if (!queued) return;
+    const names = direct.length === 1 ? direct[0].name : `${direct.length} people`;
+    toast(`Sending ${queued === 1 ? picked[0].name : `${queued} files`} to ${names}`, { icon: '↗' });
+    if (indirect.length) toast(`${indirect.map((m) => m.name).join(', ')} has no direct link, so they won't get it.`, { error: true });
+  }
+
+  const fileInput = h('input', { type: 'file', multiple: true, hidden: true });
+  document.body.append(fileInput);
+  let fileTarget: string | undefined;
+  function pickFiles(only?: string) {
+    fileTarget = only;
+    fileInput.value = '';
+    fileInput.click();
+  }
+  fileInput.addEventListener('change', () => { if (fileInput.files) sendFiles(fileInput.files, fileTarget); });
+
+  // Drag & drop: onto a person's card sends to them, anywhere else sends to everyone.
+  const veil = document.querySelector<HTMLElement>('[data-drop-veil]')!;
+  let dragDepth = 0;
+  const clearDropTargets = (keep?: Element | null) =>
+    document.querySelectorAll('.member.drop-target').forEach((el) => { if (el !== keep) el.classList.remove('drop-target'); });
+  const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes('Files');
+  document.addEventListener('dragenter', (e) => { if (!hasFiles(e) || ended) return; dragDepth++; veil.hidden = false; });
+  document.addEventListener('dragleave', (e) => { if (!hasFiles(e)) return; if (--dragDepth <= 0) { dragDepth = 0; veil.hidden = true; clearDropTargets(); } });
+  document.addEventListener('dragover', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.member[data-id]');
+    const target = card && card.dataset.id !== myId ? nameOf(card.dataset.id!) : undefined;
+    clearDropTargets(target ? card : null);
+    if (target) card!.classList.add('drop-target');
+    veil.querySelector('[data-drop-label]')!.textContent = target ? `Drop to send to ${target.name}` : 'Drop to send to everyone';
+  });
+  document.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    veil.hidden = true;
+    clearDropTargets();
+    if (ended || !e.dataTransfer) return;
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.member[data-id]');
+    sendFiles(e.dataTransfer.files, card && card.dataset.id !== myId ? card.dataset.id : undefined);
   });
 
   /* ------------------------------------------------------------- sync loop */
@@ -207,6 +298,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
         else await mesh.handleSignal(s.from, s.type, s.data);
       }
       mesh.reconcile(members.filter((m) => m.online).map((m) => m.id));
+      for (const m of members) if (!m.online) files.peerGone(m.id);
       show('room');
       renderAll();
     } catch (err: any) {
@@ -340,6 +432,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
   document.addEventListener('paste', (e) => {
     const t = e.target as HTMLElement;
     if (t.closest('input, textarea, [contenteditable]') || document.querySelector('dialog[open]')) return;
+    if (e.clipboardData?.files.length) { e.preventDefault(); sendFiles(e.clipboardData.files); return; }
     const text = e.clipboardData?.getData('text/plain');
     if (text) { e.preventDefault(); share(text, 'clipboard'); }
   });
@@ -356,6 +449,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
   composerInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); composer.requestSubmit(); }
   });
+  $('[data-send-file]').addEventListener('click', () => pickFiles());
   $('[data-send-clipboard]').addEventListener('click', async () => {
     const text = await readClipboard();
     if (text == null) toast('Clipboard access was blocked. Press Ctrl+V on the page instead.', { error: true });
@@ -625,7 +719,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       : s === 'failed' ? h('span', { class: 'pill', title: 'A direct link could not be made, so clips go through the server (deleted after 2 min)' }, h('span', { class: 'dot away' }), 'Relayed')
       : h('span', { class: 'pill' }, h('span', { class: 'dot away' }), 'Linking…');
 
-    return h('article', { class: 'member' + (enter ? ' enter' : '') },
+    return h('article', { class: 'member' + (enter ? ' enter' : ''), 'data-id': m.id },
       h('span', { class: 'avatar', '--hue': hueFor(m.tag) }, initials(m.name)),
       h('div', { class: 'top' },
         h('span', { class: 'who' }, m.name, h('span', { class: 'tag' }, `#${m.tag}`)),
@@ -633,9 +727,20 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
         m.host && h('span', { class: 'badge' }, 'Host'),
         isMe || !m.online ? null : h('span', { class: 'dot' + (m.status.focused ? ' on' : ' away'), title: presence }),
       ),
-      h('div', { class: 'conn' }, conn),
+      h('div', { class: 'conn' }, conn,
+        !isMe && m.online && s === 'open' && sendFileBtn(m)),
       lines,
     );
+  }
+
+  function sendFileBtn(m: PublicMember) {
+    const b = h('button', {
+      class: 'btn btn-sm btn-ghost icon-btn', type: 'button',
+      title: `Send a file to ${m.name}`, 'aria-label': `Send a file to ${m.name}`,
+      onclick: () => pickFiles(m.id),
+    });
+    b.innerHTML = ICON.clip;
+    return b;
   }
 
   function musicEl(music: Music) {
@@ -675,44 +780,116 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     }
   }
 
+  /** File progress fires per chunk; coalesce into one paint every ~120 ms. */
+  function scheduleClipsRender() {
+    if (clipsRenderQueued) return;
+    clipsRenderQueued = true;
+    setTimeout(() => { clipsRenderQueued = false; renderClips(); }, 120);
+  }
+
+
   function renderClips() {
     const host = $('[data-clips]');
-    if (!clips.length) {
+    if (!clips.length && !files.items.length) {
+      clipEls.clear();
       host.replaceChildren(h('li', { class: 'clip-empty' },
-        ...(touch ? ['Nothing shared yet. Paste something into the box above.'] : ['Nothing shared yet. Copy something and press ', h('kbd', {}, 'Ctrl'), h('kbd', {}, 'V'), ' here.'])));
+        ...(touch
+          ? ['Nothing shared yet. Paste text into the box above, or send a file.']
+          : ['Nothing shared yet. Copy something and press ', h('kbd', {}, 'Ctrl'), h('kbd', {}, 'V'), ' here, or drop a file anywhere.'])));
       return;
     }
     const now = Date.now();
-    host.replaceChildren(...clips.map((c) => {
-      const copyBtn = h('button', { class: 'btn btn-sm btn-ghost icon-btn copy', type: 'button', 'aria-label': 'Copy' });
-      copyBtn.innerHTML = ICON.copy;
-      copyBtn.addEventListener('click', async () => {
-        if (await writeClipboard(c.text)) {
-          lastClip = c.text;
-          copyBtn.innerHTML = ICON.check;
-          setTimeout(() => (copyBtn.innerHTML = ICON.copy), 1400);
-          if (pending?.id === c.id) pending = null;
-          c.landed = true;
-          persistClips();
-        }
-      });
-      const state = c.dir === 'in'
-        ? c.landed ? h('span', { class: 'landed' }, '✓ on clipboard') : pending?.id === c.id ? h('span', { class: 'waiting' }, 'waiting for focus') : null
-        : null;
-      const enter = !renderedClips.has(c.id);
+    const entries: (Clip | FileItem)[] = [...clips, ...files.items].sort((a, b) => b.at - a.at);
+    const els = entries.map((c) => {
+      const isFile = 'kind' in c;
+      const key = isFile
+        ? JSON.stringify([c.status, c.missed, !!c.url, timeAgo(c.at, now)])
+        : JSON.stringify([c.landed, pending?.id === c.id, c.via, timeAgo(c.at, now)]);
+      const cached = clipEls.get(c.id);
+      if (cached?.key === key) return cached.el;
+      const el = isFile ? fileEl(c, !cached && !renderedClips.has(c.id), now) : clipEl(c, !cached && !renderedClips.has(c.id), now);
       renderedClips.add(c.id);
-      return h('li', { class: `clip ${c.dir}${enter ? ' enter' : ''}` },
-        h('div', { class: 'clip-meta' },
-          h('span', {}, c.dir === 'in' ? '↘' : '↗'),
-          h('span', { class: 'who' }, c.dir === 'out' ? 'You' : c.fromName),
-          h('span', {}, timeAgo(c.at, now)),
-          c.via !== 'p2p' && h('span', { class: 'via', title: 'Went through the server because a direct link was not available' }, 'relay'),
-          state,
+      clipEls.set(c.id, { key, el });
+      return el;
+    });
+    const live = new Set(entries.map((c) => c.id));
+    for (const id of clipEls.keys()) if (!live.has(id)) clipEls.delete(id);
+    const same = els.length === host.children.length && els.every((el, i) => host.children[i] === el);
+    if (!same) host.replaceChildren(...els);
+    // Progress changes every chunk: patch the bars in place instead of rebuilding.
+    for (const f of files.items) {
+      const el = clipEls.get(f.id)?.el;
+      const bar = el?.querySelector<HTMLElement>('.file-bar > span');
+      if (bar) bar.style.transform = `scaleX(${f.progress})`;
+      const pct = el?.querySelector('[data-pct]');
+      if (pct) pct.textContent = `${Math.floor(f.progress * 100)}%`;
+    }
+  }
+
+  function clipEl(c: Clip, enter: boolean, now: number) {
+    const copyBtn = h('button', { class: 'btn btn-sm btn-ghost icon-btn copy', type: 'button', 'aria-label': 'Copy' });
+    copyBtn.innerHTML = ICON.copy;
+    copyBtn.addEventListener('click', async () => {
+      if (await writeClipboard(c.text)) {
+        lastClip = c.text;
+        copyBtn.innerHTML = ICON.check;
+        setTimeout(() => (copyBtn.innerHTML = ICON.copy), 1400);
+        if (pending?.id === c.id) pending = null;
+        c.landed = true;
+        persistClips();
+      }
+    });
+    const state = c.dir === 'in'
+      ? c.landed ? h('span', { class: 'landed' }, '✓ on clipboard') : pending?.id === c.id ? h('span', { class: 'waiting' }, 'waiting for focus') : null
+      : null;
+    return h('li', { class: `clip ${c.dir}${enter ? ' enter' : ''}` },
+      h('div', { class: 'clip-meta' },
+        h('span', {}, c.dir === 'in' ? '↘' : '↗'),
+        h('span', { class: 'who' }, c.dir === 'out' ? 'You' : c.fromName),
+        h('span', {}, timeAgo(c.at, now)),
+        c.via !== 'p2p' && h('span', { class: 'via', title: 'Went through the server because a direct link was not available' }, 'relay'),
+        state,
+      ),
+      h('div', { class: 'clip-text' }, c.text),
+      copyBtn,
+    );
+  }
+
+  function fileEl(f: FileItem, enter: boolean, now: number) {
+    const peerNames = (ids: string[]) => ids.map((id) => nameOf(id)?.name ?? 'someone').join(', ');
+    const who = f.dir === 'out'
+      ? `You → ${f.peers.length === 1 ? peerNames(f.peers) : `${f.peers.length} people`}`
+      : nameOf(f.from)?.name ?? 'Someone';
+    const state =
+      f.status === 'active' ? h('span', { class: 'waiting' }, f.dir === 'in' ? 'receiving ' : 'sending ', h('span', { 'data-pct': true }, '0%'))
+      : f.status === 'done' ? h('span', { class: 'landed' }, f.dir === 'in' ? '✓ received' : '✓ delivered')
+      : f.status === 'partial' ? h('span', { class: 'waiting' }, `missed ${peerNames(f.missed ?? [])}`)
+      : h('span', { class: 'failed' }, f.dir === 'in' ? 'interrupted' : 'not delivered');
+    const ext = (f.name.includes('.') ? f.name.split('.').pop()! : 'file').slice(0, 4).toUpperCase();
+    let action: HTMLElement | null = null;
+    if (f.dir === 'in' && f.status === 'done' && f.url) {
+      action = h('a', { class: 'btn btn-sm btn-accent', href: f.url, download: f.name, title: `Save ${f.name}` });
+      action.innerHTML = ICON.download;
+      action.append('Save');
+    }
+    return h('li', { class: `clip file ${f.dir}${enter ? ' enter' : ''}` },
+      h('div', { class: 'clip-meta' },
+        h('span', {}, f.dir === 'in' ? '↘' : '↗'),
+        h('span', { class: 'who' }, who),
+        h('span', {}, timeAgo(f.at, now)),
+        h('span', { class: 'via', title: 'Sent straight between browsers. The file never touched a server.' }, 'p2p'),
+        state,
+      ),
+      h('div', { class: 'file-row' },
+        h('span', { class: 'file-ext mono' }, ext),
+        h('div', { class: 'file-info' },
+          h('span', { class: 'file-name', title: f.name }, f.name),
+          h('span', { class: 'file-size mono' }, formatBytes(f.size)),
         ),
-        h('div', { class: 'clip-text' }, c.text),
-        copyBtn,
-      );
-    }));
+      ),
+      f.status === 'active' && h('div', { class: 'file-bar' }, h('span', { style: { transform: `scaleX(${f.progress})` } })),
+      action,
+    );
   }
 
   /* split-flap OTP */

@@ -1,6 +1,6 @@
 # Tether
 
-Share one clipboard across 2–4 computers. Start a session, share the 6-digit code (or an invite link that skips the code), and whatever gets copied lands on everyone else's clipboard.
+Share one clipboard, and send files, across 2–4 computers. Start a session, share the 6-digit code (or an invite link that skips the code), and whatever gets copied lands on everyone else's clipboard.
 
 **Stack:** Astro 7 (SSR) · Cloudflare Workers (via `@astrojs/cloudflare`) · MongoDB Atlas · WebRTC data channels.
 
@@ -12,6 +12,7 @@ Share one clipboard across 2–4 computers. Start a session, share the 6-digit c
 | WebRTC offer/answer + relay fallback for clips | MongoDB `signals` (TTL: 2 min) |
 | Rate limits (create / join / new code) | MongoDB `ratelimits` |
 | Clips + live status between peers | WebRTC data channels, encrypted, browser to browser |
+| Files (up to 500 MB) | Same data channels, 64 KB chunks with backpressure. Never touch the server, so they need a direct link |
 | Name | `tether_name` cookie (400 days, the browser maximum) + `tether_tag` 4-char device tag → `Name#TAG` |
 
 Each client polls `POST /api/session/:id/sync`. That one call is the heartbeat, carries outgoing signals and status, and returns the member list plus incoming signals. Polling runs fast (1.5 s) while a handshake is in progress and slows to 6–25 s once everyone has a direct link.

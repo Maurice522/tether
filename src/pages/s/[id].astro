@@ -92,10 +92,16 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
           <form class="composer" data-composer>
             <textarea rows="2" placeholder="Type or paste here, then press Enter to send" data-composer-input aria-label="Text to send"></textarea>
             <div class="composer-actions">
-              <button type="button" class="btn btn-sm" data-send-clipboard title="Send what's on your clipboard">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1.2"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg>
-                Send my clipboard
-              </button>
+              <div class="composer-tools">
+                <button type="button" class="btn btn-sm" data-send-clipboard title="Send what's on your clipboard">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1.2"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg>
+                  Send my clipboard
+                </button>
+                <button type="button" class="btn btn-sm" data-send-file title="Send files to everyone (or drop them on a person's card to send just to them)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m20 11.5-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>
+                  Send file
+                </button>
+              </div>
               <button type="submit" class="btn btn-sm btn-accent icon-btn" aria-label="Send">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
               </button>
@@ -110,6 +116,14 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
     <section class="loading" data-view="loading">
       <span class="spinner"></span>
     </section>
+  </div>
+
+  <div class="drop-veil" data-drop-veil hidden>
+    <div class="drop-card">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg>
+      <strong data-drop-label>Drop to send to everyone</strong>
+      <span>Goes straight to their browser, never to a server.</span>
+    </div>
   </div>
 
   <dialog class="sheet" id="app-picker" aria-labelledby="picker-title">
@@ -333,6 +347,49 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
   .clip-meta .waiting { color: var(--away); }
   .clip-text { grid-column: 1; font: 13px/1.5 var(--font-mono); white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
   .clip .copy { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+  .composer-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* file items */
+  .clip.file > .btn { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+  .clip-meta .failed { color: var(--danger); }
+  .file-row { grid-column: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .file-ext {
+    flex: none;
+    width: 42px; height: 42px;
+    border-radius: 10px;
+    display: grid; place-items: center;
+    font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    color: var(--accent-text);
+  }
+  .file-info { display: grid; min-width: 0; }
+  .file-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-size { font-size: 12px; color: var(--muted); }
+  .file-bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .file-bar > span { display: block; height: 100%; background: var(--accent-text); transform-origin: left; transition: transform 120ms linear; }
+
+  .member.drop-target { outline: 2px dashed var(--accent-text); outline-offset: 3px; }
+  .drop-veil {
+    position: fixed; inset: 0; z-index: 50;
+    display: grid; place-items: center;
+    pointer-events: none;
+    background: color-mix(in oklab, var(--bg) 55%, transparent);
+    backdrop-filter: blur(3px);
+  }
+  .drop-card {
+    display: grid; justify-items: center; gap: 6px;
+    padding: 28px 36px;
+    border-radius: var(--r-lg);
+    border: 2px dashed var(--accent-text);
+    background: var(--surface);
+    box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.5);
+    animation: sheet-in 300ms var(--ease-spring) both;
+    text-align: center;
+  }
+  .drop-card svg { width: 30px; height: 30px; color: var(--accent-text); }
+  .drop-card strong { font-size: 18px; letter-spacing: -0.02em; }
+  .drop-card span { font-size: 13px; color: var(--muted); }
 
   .picker { padding: 26px; display: grid; gap: 12px; }
   .picker h2 { margin: 0; font-size: 24px; letter-spacing: -0.03em; font-weight: 600; }

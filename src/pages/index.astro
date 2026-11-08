@@ -32,6 +32,12 @@ export const prerender = true;
           <button class="btn btn-sm" type="submit" id="join-btn">Join</button>
         </form>
       </div>
+      <ul class="trust" aria-label="Privacy at a glance">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>Peer-to-peer</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Encrypted</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4 4 0 0 1-.5-8 6 6 0 0 1 11.4-1.5A4.5 4.5 0 0 1 18 18H7z"/><path d="M4 4l16 16"/></svg>No uploads</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>No sign-up</li>
+      </ul>
     </div>
 
     <div class="stage" aria-hidden="true">
@@ -76,9 +82,60 @@ export const prerender = true;
     </article>
     <article>
       <span class="num mono">03</span>
-      <h3>Copy, paste</h3>
-      <p class="muted">Copy something and come back to the tab, or press <kbd>Ctrl</kbd><kbd>V</kbd> on the page. It lands on everyone else's clipboard.</p>
+      <h3>Copy, paste, send</h3>
+      <p class="muted">Copy something and come back to the tab, or press <kbd>Ctrl</kbd><kbd>V</kbd> on the page. It lands on everyone else's clipboard. Drop a file and it goes to them too.</p>
     </article>
+  </section>
+
+  <section class="secure wrap" aria-labelledby="secure-title">
+    <div class="secure-card">
+      <div class="secure-copy">
+        <p class="eyebrow">Private by design</p>
+        <h2 id="secure-title">Nothing sits in <span class="serif">the middle.</span></h2>
+        <p class="secure-lede">
+          Tether links your browsers to each other, not to a cloud. Files and clips travel over a direct, encrypted
+          connection, so there's no upload, no copy left on a server, and nothing for anyone to leak later.
+        </p>
+      </div>
+
+      <figure class="p2p" aria-hidden="true">
+        <svg viewBox="0 0 360 200">
+          <g class="srv">
+            <rect x="150" y="10" width="60" height="44" rx="9" />
+            <path d="M162 26h36M162 38h36" />
+            <path class="strike" d="M144 6 216 58" />
+            <path class="ghost" d="M70 120 C 100 60, 130 40, 150 34 M290 120 C 260 60, 230 40, 210 34" />
+          </g>
+          <path class="wire" d="M92 140 C 150 172, 210 172, 268 140" />
+          <path class="wire-glow" d="M92 140 C 150 172, 210 172, 268 140" pathLength="100" />
+          <g class="dev"><rect x="20" y="110" width="72" height="54" rx="10" /><path d="M40 176h32" /></g>
+          <g class="dev"><rect x="268" y="110" width="72" height="54" rx="10" /><path d="M288 176h32" /></g>
+          <text x="56" y="141">you</text>
+          <text x="304" y="141">them</text>
+          <text class="lock" x="180" y="192">encrypted · direct</text>
+        </svg>
+        <figcaption class="mono">no server in the path</figcaption>
+      </figure>
+
+      <ul class="secure-points">
+        <li>
+          <h3>Serverless transfer</h3>
+          <p>Files go straight from your browser to theirs over WebRTC. They're never uploaded, so there's nothing stored to delete.</p>
+        </li>
+        <li>
+          <h3>Encrypted on the wire</h3>
+          <p>Every link is encrypted with DTLS, the same standard behind video calls in your browser. Keys are made fresh for each connection.</p>
+        </li>
+        <li>
+          <h3>No accounts</h3>
+          <p>No email, no password, no profile. Your name lives in a cookie on your own device, and nowhere else.</p>
+        </li>
+        <li>
+          <h3>Short-lived by default</h3>
+          <p>Join codes expire after 10 minutes, rooms hold 4 people at most, and idle sessions vanish after 12 hours.</p>
+        </li>
+      </ul>
+    </div>
   </section>
 
   <section class="honest wrap">
@@ -91,7 +148,7 @@ export const prerender = true;
         <li><b>Syncing happens when you switch to the tab.</b> Browsers only let a page read your clipboard while it's in front, so switch to Tether after copying and it sends. In Firefox and Safari, press <kbd>Ctrl</kbd><kbd>V</kbd> on the page.</li>
         <li><b>Incoming clips land when you switch to the tab.</b> Everything received also stays in the list, one click to copy.</li>
         <li><b>You set your own status.</b> A website can't see which app you're using, so you pick it: VS Code, Figma, whatever.</li>
-        <li><b>Clips go straight between your browsers.</b> They only pass through our server if a direct link can't be made, and then they're deleted after two minutes.</li>
+        <li><b>Files never touch a server.</b> They need a direct link. Text clips use one too, and only fall back to a relay if a direct link can't be made, where they're deleted after two minutes.</li>
       </ul>
     </div>
   </section>
@@ -359,6 +416,62 @@ export const prerender = true;
     border-bottom-width: 2px;
     background: var(--surface);
     color: var(--text);
+  }
+
+  /* trust strip under the dock */
+  .trust { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 16px 0 0; padding: 0 0 0 4px; }
+  .trust li { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); }
+  .trust svg { width: 15px; height: 15px; color: var(--accent-text); }
+
+  /* ------------------------------------------------------------- secure */
+  .secure { padding-bottom: 32px; }
+  .secure-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+    gap: 28px 48px;
+    padding: 44px;
+    border-radius: 28px;
+    overflow: hidden;
+    color: #eceee6;
+    background:
+      radial-gradient(120% 90% at 100% 0%, rgba(200, 245, 58, 0.14), transparent 55%),
+      linear-gradient(180deg, #121416, #0b0c0d);
+    border: 1px solid rgba(236, 240, 228, 0.08);
+    box-shadow: 0 40px 80px -40px rgba(0, 0, 0, 0.6);
+  }
+  .secure-card .eyebrow { color: #93978e; }
+  .secure-card h2 { margin: 12px 0 14px; font-size: clamp(32px, 4vw, 46px); line-height: 1; letter-spacing: -0.045em; font-weight: 600; }
+  .secure-card h2 .serif { color: #d4ff4a; font-size: 1.1em; }
+  .secure-lede { margin: 0; color: #a7aba2; font-size: 16px; max-width: 46ch; text-wrap: pretty; }
+
+  .p2p { margin: 0; align-self: center; display: grid; gap: 6px; justify-items: center; }
+  .p2p svg { width: 100%; max-width: 380px; overflow: visible; }
+  .p2p .dev rect { fill: #1a1d1f; stroke: rgba(236, 240, 228, 0.25); stroke-width: 1.5; }
+  .p2p .dev path { stroke: rgba(236, 240, 228, 0.25); stroke-width: 3; stroke-linecap: round; }
+  .p2p text { fill: #eceee6; font: 500 12px var(--font-mono); text-anchor: middle; }
+  .p2p .lock { fill: #d4ff4a; font-size: 11px; letter-spacing: 0.04em; }
+  .p2p .wire { fill: none; stroke: rgba(212, 255, 74, 0.35); stroke-width: 2.5; }
+  .p2p .wire-glow { fill: none; stroke: #d4ff4a; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 16 84; animation: wire 2.4s linear infinite; filter: drop-shadow(0 0 6px rgba(212, 255, 74, 0.7)); }
+  @keyframes wire { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+  .p2p .srv rect { fill: none; stroke: rgba(236, 240, 228, 0.22); stroke-width: 1.5; stroke-dasharray: 4 4; }
+  .p2p .srv path { fill: none; stroke: rgba(236, 240, 228, 0.22); stroke-width: 1.5; stroke-linecap: round; }
+  .p2p .srv .ghost { stroke-dasharray: 2 6; }
+  .p2p .srv .strike { stroke: #ff6b4f; stroke-width: 2.5; stroke-dasharray: none; }
+  .p2p figcaption { font-size: 11px; color: #62665f; text-transform: uppercase; letter-spacing: 0.12em; }
+
+  .secure-points { grid-column: 1 / -1; list-style: none; margin: 8px 0 0; padding: 26px 0 0; border-top: 1px solid rgba(236, 240, 228, 0.08); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+  .secure-points h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+  .secure-points h3::before { content: ''; width: 7px; height: 7px; border-radius: 2px; background: #d4ff4a; box-shadow: 0 0 10px rgba(212, 255, 74, 0.6); }
+  .secure-points p { margin: 0; font-size: 13.5px; color: #a7aba2; text-wrap: pretty; }
+
+  @media (max-width: 960px) {
+    .secure-card { grid-template-columns: 1fr; padding: 30px; }
+    .secure-points { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 560px) {
+    .secure-card { padding: 24px 20px; border-radius: 22px; }
+    .secure-points { grid-template-columns: 1fr; gap: 18px; }
   }
 
   .honest-card {
