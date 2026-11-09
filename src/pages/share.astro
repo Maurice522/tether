@@ -3,24 +3,35 @@ import Layout from '../layouts/Layout.astro';
 export const prerender = true;
 ---
 <Layout title="Share to Tether" description="Hand off something you shared from another app to your Tether session." noindex>
+  <script is:inline>
+    // Static page: switch to the visitor's chosen language before the page script reads it.
+    try { var l = (document.cookie.match(/(?:^|; )tether_lang=(en|de|fr)/) || [])[1]; if (l) document.documentElement.lang = l; } catch (e) {}
+  </script>
   <section class="wrap share">
     <div class="card share-card">
-      <p class="eyebrow">Share to Tether</p>
+      <p class="eyebrow" data-eyebrow>Share to Tether</p>
       <h1 data-title>Finding your session…</h1>
       <p class="muted" data-sub></p>
       <div class="share-actions" data-actions hidden>
-        <a class="btn btn-accent" href="/">Start a session</a>
+        <a class="btn btn-accent" href="/" data-start>Start a session</a>
       </div>
     </div>
   </section>
 </Layout>
 
 <script>
+  import { LANG, T } from '../i18n/client';
+  import { localePath } from '../i18n';
   import { membership } from '../scripts/ui';
 
   const title = document.querySelector('[data-title]')!;
   const sub = document.querySelector('[data-sub]')!;
   const actions = document.querySelector<HTMLElement>('[data-actions]')!;
+  const start = document.querySelector<HTMLAnchorElement>('[data-start]')!;
+  document.querySelector('[data-eyebrow]')!.textContent = T('Share to Tether');
+  title.textContent = T('Finding your session…');
+  start.textContent = T('Start a session');
+  start.href = localePath(LANG, '/');
 
   async function hasShare() {
     try {
@@ -32,10 +43,10 @@ export const prerender = true;
   (async () => {
     const lost = new URLSearchParams(location.search).has('lost');
     if (lost || !(await hasShare())) {
-      title.textContent = lost ? 'That share didn’t come through' : 'Nothing to share';
+      title.textContent = lost ? T('That share didn’t come through') : T('Nothing to share');
       sub.textContent = lost
-        ? 'Tether was still installing the first time. Share again and it’ll work from now on.'
-        : 'Use your phone’s Share button in any app and pick Tether.';
+        ? T('Tether was still installing the first time. Share again and it’ll work from now on.')
+        : T('Use your phone’s Share button in any app and pick Tether.');
       actions.hidden = false;
       return;
     }
@@ -46,8 +57,8 @@ export const prerender = true;
       location.replace(`/s/${last.sid}`);
       return;
     }
-    title.textContent = 'Join a session first';
-    sub.textContent = 'Start or join a session, and what you shared will be waiting there, ready to send.';
+    title.textContent = T('Join a session first');
+    sub.textContent = T('Start or join a session, and what you shared will be waiting there, ready to send.');
     actions.hidden = false;
   })();
 </script>

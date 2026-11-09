@@ -2,6 +2,8 @@
  * Who this browser is: a display name (cookie, persists until cleared) and a
  * stable 4-char device tag so two "Alex"es can be told apart: Alex#7F3A.
  */
+import { T } from '../i18n/client';
+
 const NAME_COOKIE = 'tether_name';
 const TAG_COOKIE = 'tether_tag';
 const MAX_AGE = 400 * 24 * 60 * 60; // browsers cap cookie lifetime at 400 days
@@ -60,7 +62,7 @@ export function paintIdentity() {
     const n = el.querySelector<HTMLElement>('[data-identity-name]');
     const t = el.querySelector<HTMLElement>('[data-identity-tag]');
     const a = el.querySelector<HTMLElement>('[data-identity-avatar]');
-    if (n) n.textContent = name ?? 'Set your name';
+    if (n) n.textContent = name ?? T('Set your name');
     if (t) t.textContent = name ? `#${tag}` : '';
     if (a) {
       a.textContent = name ? initials(name) : '?';
@@ -85,13 +87,13 @@ export function ensureName(opts: { force?: boolean; reason?: string } = {}): Pro
   const preview = dialog.querySelector<HTMLElement>('[data-gate-preview]')!;
   const avatar = dialog.querySelector<HTMLElement>('[data-gate-avatar]')!;
 
-  reason.textContent = opts.reason ?? 'This is how others in the session will see you.';
+  reason.textContent = opts.reason ?? T('This is how others in the session will see you.');
   tagEl.textContent = `#${current.tag}`;
   input.value = current.name ?? '';
   avatar.style.setProperty('--hue', String(hueFor(current.tag)));
   const update = () => {
     const v = input.value.trim();
-    preview.textContent = v || 'Your name';
+    preview.textContent = v || T('Your name');
     preview.classList.toggle('empty', !v);
     avatar.textContent = v ? initials(v) : '?';
   };

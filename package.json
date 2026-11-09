@@ -7,10 +7,11 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "node scripts/i18n-check.mjs && astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "check": "astro check && tsc -p tsconfig.worker.json"
+    "check": "astro check && tsc -p tsconfig.worker.json",
+    "i18n:check": "node scripts/i18n-check.mjs"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.3",

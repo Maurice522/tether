@@ -1,3 +1,5 @@
+import { T as tr } from '../i18n/client';
+
 export function toast(message: string, opts: { error?: boolean; ms?: number; icon?: string } = {}) {
   let host = document.querySelector('.toasts');
   if (!host) {
@@ -28,7 +30,7 @@ export async function api<T = any>(path: string, init: { body?: unknown; member?
   if (init.member) headers['x-tether-member'] = `${init.member.id}.${init.member.token}`;
   const res = await fetch(path, { method: 'POST', headers, body: JSON.stringify(init.body ?? {}) });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.error ?? `Request failed (${res.status})`), { status: res.status });
+  if (!res.ok) throw Object.assign(new Error(data.error ? tr(data.error) : tr('Request failed ({status})', { status: res.status })), { status: res.status });
   return data as T;
 }
 
@@ -52,11 +54,11 @@ export function h<K extends keyof HTMLElementTagNameMap>(
 
 export function timeAgo(ts: number, now = Date.now()): string {
   const s = Math.max(0, Math.round((now - ts) / 1000));
-  if (s < 10) return 'just now';
-  if (s < 60) return `${s}s ago`;
+  if (s < 10) return tr('just now');
+  if (s < 60) return tr('{n}s ago', { n: s });
   const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  return `${Math.round(m / 60)}h ago`;
+  if (m < 60) return tr('{n}m ago', { n: m });
+  return tr('{n}h ago', { n: Math.round(m / 60) });
 }
 
 /** Memberships live in localStorage so a refresh keeps your seat. */

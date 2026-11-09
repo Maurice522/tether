@@ -5,6 +5,7 @@ import { FileTransfers, formatBytes, type FileItem } from './files';
 import { Mesh, type PeerState } from './mesh';
 import { connectSpotify, disconnectSpotify, nowPlaying, spotifyAvailable, spotifyConnected } from './spotify';
 import { renderSVG } from 'uqr';
+import { T } from '../i18n/client';
 import { api, h, membership, timeAgo, toast, type Membership } from './ui';
 
 const MAX_CLIP = 64 * 1024;
@@ -48,7 +49,7 @@ export async function startRoom(root: HTMLElement) {
     show('join');
     if (title) $('[data-join-title]').textContent = title;
     if (sub) $('[data-join-sub]').textContent = sub;
-    setConn('off', 'Not joined');
+    setConn('off', T('Not joined'));
     const form = $<HTMLFormElement>('[data-join-form]');
     const input = form.querySelector('input')!;
     const msg = $('[data-join-msg]');
@@ -85,13 +86,13 @@ export async function startRoom(root: HTMLElement) {
   if (invite) history.replaceState(null, '', location.pathname); // keep the token out of history/screenshots
   if (!seat && invite) {
     try {
-      const me = await ensureName({ reason: "You've been invited. Pick the name others will see." });
+      const me = await ensureName({ reason: T("You've been invited. Pick the name others will see.") });
       const res = await api('/api/session/join', { body: { sessionId: sid, invite, name: me.name, tag: me.tag } });
       membership.set(sid, res.member);
       seat = res.member;
     } catch (err: any) {
-      if (err.message === 'cancelled') return showJoin('Join this session?', 'You need a name to join. Open the invite link again, or enter the code.');
-      return showJoin('Invite not valid', err.message);
+      if (err.message === 'cancelled') return showJoin(T('Join this session?'), T('You need a name to join. Open the invite link again, or enter the code.'));
+      return showJoin(T('Invite not valid'), err.message);
     }
   }
   if (!seat) return showJoin();
@@ -109,6 +110,7 @@ function setConn(kind: 'ok' | 'warn' | 'off', label: string) {
 }
 
 function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string) => void, showJoin: (t?: string, s?: string) => void) {
+  const baseTitle = document.title;
   const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
   const myId = seat.id;
 
@@ -181,16 +183,16 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     const prev = fileStatus.get(item.id);
     fileStatus.set(item.id, item.status);
     if (prev !== item.status && item.dir === 'in') {
-      const who = nameOf(item.from)?.name ?? 'Someone';
+      const who = nameOf(item.from)?.name ?? T('Someone');
       if (!prev) pulse(item.from, myId);
       if (item.status === 'done') {
-        toast(`${who} sent ${item.name}`, { icon: '↓' });
-        notify(`${who} sent a file`, `${item.name} · tap to open Tether and save it`);
+        toast(T('{who} sent {file}', { who, file: item.name }), { icon: '↓' });
+        notify(T('{who} sent a file', { who }), T('{file} · tap to open Tether and save it', { file: item.name }));
       }
-      if (item.status === 'failed') toast(`${item.name} from ${who} was interrupted`, { error: true });
+      if (item.status === 'failed') toast(T('{file} from {who} was interrupted', { file: item.name, who }), { error: true });
     }
     if (prev !== item.status && item.dir === 'out' && item.status === 'partial') {
-      toast(`${item.name} didn't reach ${item.missed!.map((id) => nameOf(id)?.name ?? 'someone').join(', ')}`, { error: true });
+      toast(T("{file} didn't reach {who}", { file: item.name, who: item.missed!.map((id) => nameOf(id)?.name ?? T('someone')).join(', ') }), { error: true });
     }
     scheduleClipsRender();
   });
@@ -200,11 +202,11 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     const picked = [...list];
     if (!picked.length) return;
     const targets = members.filter((m) => m.id !== myId && m.online && (!only || m.id === only));
-    if (!targets.length) { toast(only ? "They're offline right now." : 'Nobody else is online yet.', { error: true }); return; }
+    if (!targets.length) { toast(only ? T("They're offline right now.") : T('Nobody else is online yet.'), { error: true }); return; }
     const direct = targets.filter((m) => mesh.channel(m.id));
     const indirect = targets.filter((m) => !mesh.channel(m.id));
     if (!direct.length) {
-      toast("Files only travel over a direct link, and there isn't one yet. Try again in a moment.", { error: true });
+      toast(T("Files only travel over a direct link, and there isn't one yet. Try again in a moment."), { error: true });
       return;
     }
     let queued = 0;
@@ -212,12 +214,12 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       if (files.send(file, direct.map((m) => m.id))) {
         queued++;
         for (const m of direct) pulse(myId, m.id);
-      } else toast(`${file.name} is over 500 MB, too big to send.`, { error: true });
+      } else toast(T('{file} is over 500 MB, too big to send.', { file: file.name }), { error: true });
     }
     if (!queued) return;
-    const names = direct.length === 1 ? direct[0].name : `${direct.length} people`;
-    toast(`Sending ${queued === 1 ? picked[0].name : `${queued} files`} to ${names}`, { icon: '↗' });
-    if (indirect.length) toast(`${indirect.map((m) => m.name).join(', ')} has no direct link, so they won't get it.`, { error: true });
+    const names = direct.length === 1 ? direct[0].name : T('{n} people', { n: direct.length });
+    toast(T('Sending {what} to {who}', { what: queued === 1 ? picked[0].name : T('{n} files', { n: queued }), who: names }), { icon: '↗' });
+    if (indirect.length) toast(T("{who} has no direct link, so they won't get it.", { who: indirect.map((m) => m.name).join(', ') }), { error: true });
   }
 
   const fileInput = h('input', { type: 'file', multiple: true, hidden: true });
@@ -245,7 +247,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     const target = card && card.dataset.id !== myId ? nameOf(card.dataset.id!) : undefined;
     clearDropTargets(target ? card : null);
     if (target) card!.classList.add('drop-target');
-    veil.querySelector('[data-drop-label]')!.textContent = target ? `Drop to send to ${target.name}` : 'Drop to send to everyone';
+    veil.querySelector('[data-drop-label]')!.textContent = target ? T('Drop to send to {name}', { name: target.name }) : T('Drop to send to everyone');
   });
   document.addEventListener('drop', (e) => {
     if (!hasFiles(e)) return;
@@ -311,10 +313,10 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       ws = null;
       authed = false;
       if (ended || e.code === 4003) return; // 4003: denied, handled in onServer
-      if (e.code === 4002) { endSession("This session is open in another tab", 'Close the other tab, or reload here to take over.', false); return; }
+      if (e.code === 4002) { endSession(T('This session is open in another tab'), T('Close the other tab, or reload here to take over.'), false); return; }
       if (e.code === 4001) return; // we left
       failures++;
-      setConn('warn', 'Reconnecting…');
+      setConn('warn', T('Reconnecting…'));
       retryTimer = setTimeout(connect, Math.min(15_000, 400 * 2 ** failures));
     };
   }
@@ -335,10 +337,10 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
         void loadShared();
       } else {
         for (const m of members) if (!prevIds.has(m.id) && m.id !== myId) {
-          toast(`${m.name} joined`, { icon: '→' });
+          toast(T('{name} joined', { name: m.name }), { icon: '→' });
           bumpNode(m.id);
         }
-        for (const id of prevIds) if (!members.some((m) => m.id === id)) toast('Someone left the session');
+        for (const id of prevIds) if (!members.some((m) => m.id === id)) toast(T('Someone left the session'));
       }
       firstSync = false;
       mesh.reconcile(members.filter((m) => m.online).map((m) => m.id));
@@ -351,8 +353,8 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       else await mesh.handleSignal(msg.from, msg.type, msg.data);
     } else if (msg.t === 'denied') {
       endSession(
-        msg.reason === 'ended' ? 'This session has ended' : "You're no longer in this session",
-        'Enter a fresh code to join again, or start a new session.',
+        msg.reason === 'ended' ? T('This session has ended') : T("You're no longer in this session"),
+        T('Enter a fresh code to join again, or start a new session.'),
         true,
       );
     }
@@ -363,7 +365,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     const me = nameOf(myId);
     const host = members.find((m) => m.host);
     if (me && host && host.id !== myId && Date.now() - me.joinedAt < 60_000) {
-      toast(`You joined ${host.name}'s session`, { icon: '✓', ms: 3600 });
+      toast(T("You joined {host}'s session", { host: host.name }), { icon: '✓', ms: 3600 });
     }
   }
 
@@ -394,17 +396,17 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
   function share(text: string, source: 'auto' | 'clipboard' | 'typed') {
     if (!text.trim()) return;
     if (source !== 'typed') lastClip = text;
-    if (new Blob([text]).size > MAX_CLIP) { toast('That clip is over 64 KB — too big to send.', { error: true }); return; }
+    if (new Blob([text]).size > MAX_CLIP) { toast(T('That clip is over 64 KB — too big to send.'), { error: true }); return; }
     if (!syncing && source === 'auto') return;
     const key = text.trim();
     if (clips.some((c) => c.text.trim() === key)) {
-      if (source !== 'auto') toast('Already in the list. Use its copy button instead.');
+      if (source !== 'auto') toast(T('Already in the list. Use its copy button instead.'));
       return;
     }
     const peers = members.filter((m) => m.id !== myId && m.online);
     const me = nameOf(myId);
     const clip: Clip = {
-      id: crypto.randomUUID(), text, from: myId, fromName: me?.name ?? 'You', fromTag: me?.tag ?? '',
+      id: crypto.randomUUID(), text, from: myId, fromName: me?.name ?? T('You'), fromTag: me?.tag ?? '',
       at: Date.now(), dir: 'out', via: 'p2p',
     };
     seen.add(clip.id);
@@ -419,8 +421,8 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     clips = clips.slice(0, MAX_HISTORY);
     persistClips();
     renderClips();
-    if (!peers.length) toast('Saved here. Nobody else is online yet.');
-    else if (source !== 'auto') toast(`Sent to ${peers.length === 1 ? peers[0].name : `${peers.length} devices`}`, { icon: '↗' });
+    if (!peers.length) toast(T('Saved here. Nobody else is online yet.'));
+    else if (source !== 'auto') toast(T('Sent to {who}', { who: peers.length === 1 ? peers[0].name : T('{n} devices', { n: peers.length }) }), { icon: '↗' });
   }
 
   async function receive(from: string, msg: any, via: 'p2p' | 'relay') {
@@ -428,7 +430,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     seen.add(msg.id);
     const m = nameOf(from);
     const clip: Clip = {
-      id: msg.id, text: msg.text.slice(0, MAX_CLIP), from, fromName: m?.name ?? 'Someone', fromTag: m?.tag ?? '',
+      id: msg.id, text: msg.text.slice(0, MAX_CLIP), from, fromName: m?.name ?? T('Someone'), fromTag: m?.tag ?? '',
       at: typeof msg.at === 'number' ? msg.at : Date.now(), dir: 'in', via,
     };
     clips.unshift(clip);
@@ -440,7 +442,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
         lastClip = clip.text;
       } else {
         pending = clip;
-        document.title = `● ${clip.fromName} sent a clip — Tether`;
+        document.title = T('● {who} sent a clip — Tether', { who: clip.fromName });
       }
     }
     notify(`${clip.fromName} sent a clip`, clip.text.slice(0, 120));
@@ -455,13 +457,13 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     if (pending && syncing) {
       const clip = pending;
       pending = null;
-      document.title = document.title.replace(/^● .* — Tether$/, `Session ${sid.slice(0, 4)}·${sid.slice(4)} — Tether`);
+      document.title = baseTitle;
       // Chrome wants the document fully focused before writes; give it a frame.
       await new Promise((r) => setTimeout(r, 60));
       if (await writeClipboard(clip.text)) {
         clip.landed = true;
         lastClip = clip.text;
-        toast(`Clip from ${clip.fromName} is on your clipboard`, { icon: '✓' });
+        toast(T('Clip from {who} is on your clipboard', { who: clip.fromName }), { icon: '✓' });
         persistClips();
         renderClips();
         return; // don't bounce it straight back out
@@ -515,15 +517,15 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
   $('[data-send-file]').addEventListener('click', () => pickFiles());
   $('[data-send-clipboard]').addEventListener('click', async () => {
     const text = await readClipboard();
-    if (text == null) toast('Clipboard access was blocked. Press Ctrl+V on the page instead.', { error: true });
-    else if (!text.trim()) toast('Your clipboard is empty (or holds an image, which isn\'t supported yet).');
+    if (text == null) toast(T('Clipboard access was blocked. Press Ctrl+V on the page instead.'), { error: true });
+    else if (!text.trim()) toast(T("Your clipboard is empty (or holds an image, which isn't supported yet)."));
     else share(text, 'clipboard');
   });
 
   const syncToggle = $<HTMLInputElement>('[data-sync-toggle]');
   syncToggle.addEventListener('change', () => {
     syncing = syncToggle.checked;
-    $('[data-sync-label]').textContent = syncing ? 'Syncing' : 'Paused';
+    $('[data-sync-label]').textContent = syncing ? T('Syncing') : T('Paused');
     if (syncing) lastClip = null; // re-baseline so we don't dump what was copied while paused
     renderMode();
   });
@@ -607,7 +609,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     if (!res) return;
     shared = await res.json();
     const parts: string[] = [];
-    if (shared!.files.length) parts.push(shared!.files.length === 1 ? `${shared!.files[0].name} (${formatBytes(shared!.files[0].size)})` : `${shared!.files.length} files`);
+    if (shared!.files.length) parts.push(shared!.files.length === 1 ? `${shared!.files[0].name} (${formatBytes(shared!.files[0].size)})` : T('{n} files', { n: shared!.files.length }));
     if (shared!.text) parts.push(shared!.text.length > 80 ? shared!.text.slice(0, 80) + '…' : shared!.text);
     $('[data-share-what]').textContent = parts.join(' · ');
     tray.hidden = false;
@@ -621,7 +623,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
   $('[data-share-discard]').addEventListener('click', () => void clearShared());
   $('[data-share-send]').addEventListener('click', async () => {
     if (!shared) return;
-    if (!members.some((m) => m.id !== myId && m.online)) { toast("Nobody else is here yet. It'll wait until someone joins."); return; }
+    if (!members.some((m) => m.id !== myId && m.online)) { toast(T("Nobody else is here yet. It'll wait until someone joins.")); return; }
     const cache = await sharedCache();
     const list: File[] = [];
     for (const f of shared.files) {
@@ -657,7 +659,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
   let notifyOn = canNotify && Notification.permission === 'granted' && localStorage.getItem('tether:notify') === '1';
   const paintNotify = () => {
     notifyBtn.setAttribute('aria-pressed', String(notifyOn));
-    notifyBtn.title = notifyOn ? 'Notifications on: tap to turn off' : "Notify me when something arrives while I'm in another app";
+    notifyBtn.title = notifyOn ? T('Notifications on: tap to turn off') : T("Notify me when something arrives while I'm in another app");
   };
   notifyBtn.hidden = !canNotify;
   paintNotify();
@@ -666,11 +668,11 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     else {
       const p = Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission;
       notifyOn = p === 'granted';
-      if (p === 'denied') toast('Notifications are blocked for this site. Allow them from the lock icon in the address bar.', { error: true });
+      if (p === 'denied') toast(T('Notifications are blocked for this site. Allow them from the lock icon in the address bar.'), { error: true });
     }
     try { localStorage.setItem('tether:notify', notifyOn ? '1' : '0'); } catch { /* private mode */ }
     paintNotify();
-    if (notifyOn) toast("You'll get a notification when something arrives", { icon: '🔔' });
+    if (notifyOn) toast(T("You'll get a notification when something arrives"), { icon: '🔔' });
   });
 
   function notify(title: string, body: string) {
@@ -687,19 +689,19 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     if (!inviteToken) return;
     if (await writeClipboard(inviteUrl())) {
       lastClip = inviteUrl(); // don't sync our own invite link out
-      toast('Invite link copied', { icon: '✓' });
+      toast(T('Invite link copied'), { icon: '✓' });
     }
   }
   $('[data-copy-invite]').addEventListener('click', copyInvite);
   const shareBtn = $<HTMLButtonElement>('[data-share]');
   if (navigator.share) {
     shareBtn.hidden = false;
-    shareBtn.addEventListener('click', () => navigator.share({ title: 'Join my Tether session', text: `Code: ${otp}`, url: inviteUrl() }).catch(() => {}));
+    shareBtn.addEventListener('click', () => navigator.share({ title: T('Join my Tether session'), text: T('Code: {otp}', { otp }), url: inviteUrl() }).catch(() => {}));
   }
   $('[data-flap]').addEventListener('click', async () => {
     if (otp && Date.now() + serverSkew < otpExpiresAt && (await writeClipboard(otp))) {
       lastClip = otp;
-      toast('Code copied', { icon: '✓' });
+      toast(T('Code copied'), { icon: '✓' });
     }
   });
   $('[data-new-code]').addEventListener('click', async () => {
@@ -720,12 +722,12 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     clearTimeout(leaveArmed);
     leaveArmed = undefined;
     leaveBtn.classList.remove('confirm');
-    leaveLabel.textContent = 'Leave';
+    leaveLabel.textContent = T('Leave');
   }
   leaveBtn.addEventListener('click', async () => {
     if (!leaveArmed) {
       leaveBtn.classList.add('confirm');
-      leaveLabel.textContent = unsavedFiles() ? 'Unsaved files will be lost. Tap again' : 'Tap again to leave';
+      leaveLabel.textContent = unsavedFiles() ? T('Unsaved files will be lost. Tap again') : T('Tap again to leave');
       leaveArmed = setTimeout(disarmLeave, 3000);
       return;
     }
@@ -772,11 +774,11 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
 
   function renderConn() {
     const peers = members.filter((m) => m.id !== myId && m.online);
-    if (!peers.length) return setConn('warn', 'Waiting for others');
+    if (!peers.length) return setConn('warn', T('Waiting for others'));
     const open = peers.filter((p) => peerState.get(p.id) === 'open').length;
-    if (open === peers.length) setConn('ok', `Direct link · ${peers.length + 1} devices`);
-    else if (open) setConn('warn', `${open}/${peers.length} direct, rest relayed`);
-    else setConn('warn', 'Linking…');
+    if (open === peers.length) setConn('ok', T('Direct link · {n} devices', { n: peers.length + 1 }));
+    else if (open) setConn('warn', T('{open}/{total} direct, rest relayed', { open, total: peers.length }));
+    else setConn('warn', T('Linking…'));
   }
 
   function linkClass(peerId: string) {
@@ -827,7 +829,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       node.classList.toggle('me', m.id === myId);
       node.classList.toggle('offline', !m.online);
       const presence = !m.online ? '' : m.id === myId || m.status.focused ? ' on' : ' away';
-      const sub = m.status.music?.playing ? `♪ ${m.status.music.title}` : m.status.app ? m.status.app : m.id === myId ? 'You' : m.online ? (m.status.focused ? 'Here now' : 'Away') : 'Offline';
+      const sub = m.status.music?.playing ? `♪ ${m.status.music.title}` : m.status.app ? m.status.app : m.id === myId ? T('You') : m.online ? (m.status.focused ? T('Here now') : T('Away')) : T('Offline');
       node.innerHTML = '';
       node.append(
         h('span', { class: 'avatar', '--hue': hueFor(m.tag) }, initials(m.name), h('span', { class: 'dot' + presence })),
@@ -839,9 +841,9 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     // Empty seats double as invite buttons.
     for (let i = ordered.length; i < seats; i++) {
       const [x, y] = layout[i];
-      const seatBtn = h('button', { class: 'node empty', type: 'button', title: 'Copy invite link', style: { left: `${x}%`, top: `${y}%` }, onclick: copyInvite },
+      const seatBtn = h('button', { class: 'node empty', type: 'button', title: T('Copy invite link'), style: { left: `${x}%`, top: `${y}%` }, onclick: copyInvite },
         h('span', { class: 'avatar' }, '+'),
-        h('span', { class: 'sub' }, 'Invite someone'),
+        h('span', { class: 'sub' }, T('Invite someone')),
       );
       keep.add(seatBtn);
       host.append(seatBtn);
@@ -894,18 +896,18 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
 
   function memberCard(m: PublicMember, enter: boolean): HTMLElement {
     const isMe = m.id === myId;
-    const presence = !m.online ? 'Offline' : m.status.focused ? 'Here now' : 'Away';
+    const presence = !m.online ? T('Offline') : m.status.focused ? T('Here now') : T('Away');
     const lines = h('div', { class: 'lines' });
 
     if (isMe) {
       lines.append(h('button', { class: 'editable', type: 'button', onclick: openPicker },
-        iconEl(ICON.app), h('span', {}, myApp ? `Working in ${myApp}` : "Set what you're working in")));
+        iconEl(ICON.app), h('span', {}, myApp ? T('Working in {app}', { app: myApp }) : T("Set what you're working in"))));
       if (spotifyAvailable()) {
         if (!spotifyConnected()) {
-          lines.append(h('button', { class: 'editable', type: 'button', onclick: () => connectSpotify() }, iconEl(ICON.spotify), h('span', {}, 'Connect Spotify')));
+          lines.append(h('button', { class: 'editable', type: 'button', onclick: () => connectSpotify() }, iconEl(ICON.spotify), h('span', {}, T('Connect Spotify'))));
         } else if (!m.status.music) {
-          lines.append(h('button', { class: 'editable', type: 'button', title: 'Disconnect Spotify', onclick: () => { disconnectSpotify(); myMusic = null; statusDirty = true; broadcastStatus(); } },
-            iconEl(ICON.spotify), h('span', {}, 'Nothing playing')));
+          lines.append(h('button', { class: 'editable', type: 'button', title: T('Disconnect Spotify'), onclick: () => { disconnectSpotify(); myMusic = null; statusDirty = true; broadcastStatus(); } },
+            iconEl(ICON.spotify), h('span', {}, T('Nothing playing'))));
         }
       }
     } else if (m.status.app) {
@@ -916,16 +918,16 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
 
     const s = peerState.get(m.id);
     const conn = isMe ? null
-      : !m.online ? h('span', { class: 'pill' }, h('span', { class: 'dot' }), 'Offline')
-      : s === 'open' ? h('span', { class: 'pill', title: 'Clips go directly between your browsers, end-to-end encrypted' }, h('span', { class: 'dot on' }), 'Direct')
-      : s === 'failed' ? h('span', { class: 'pill', title: 'A direct link could not be made, so clips go through the server (deleted after 2 min)' }, h('span', { class: 'dot away' }), 'Relayed')
-      : h('span', { class: 'pill' }, h('span', { class: 'dot away' }), 'Linking…');
+      : !m.online ? h('span', { class: 'pill' }, h('span', { class: 'dot' }), T('Offline'))
+      : s === 'open' ? h('span', { class: 'pill', title: T('Clips go directly between your browsers, end-to-end encrypted') }, h('span', { class: 'dot on' }), T('Direct'))
+      : s === 'failed' ? h('span', { class: 'pill', title: T('A direct link could not be made, so clips go through the server (deleted after 2 min)') }, h('span', { class: 'dot away' }), T('Relayed'))
+      : h('span', { class: 'pill' }, h('span', { class: 'dot away' }), T('Linking…'));
 
     return h('article', { class: 'member' + (enter ? ' enter' : ''), 'data-id': m.id },
       h('span', { class: 'avatar', '--hue': hueFor(m.tag) }, initials(m.name)),
       h('div', { class: 'top' },
         h('span', { class: 'who' }, m.name, h('span', { class: 'tag' }, `#${m.tag}`)),
-        isMe && h('span', { class: 'badge you' }, 'You'),
+        isMe && h('span', { class: 'badge you' }, T('You')),
         isMe || !m.online ? null : h('span', { class: 'dot' + (m.status.focused ? ' on' : ' away'), title: presence }),
       ),
       h('div', { class: 'conn' }, conn,
@@ -937,18 +939,18 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
   function sendFileBtn(m: PublicMember) {
     const b = h('button', {
       class: 'btn btn-sm btn-ghost send-to', type: 'button',
-      title: `Send a file to ${m.name}`,
+      title: T('Send a file to {name}', { name: m.name }),
       onclick: () => pickFiles(m.id),
     });
     b.innerHTML = ICON.clip;
-    b.append('Send file');
+    b.append(T('Send file'));
     return b;
   }
 
   function musicEl(music: Music) {
     const label = `${music.title}${music.artist ? ' · ' + music.artist : ''}`;
     const text = music.url ? h('a', { href: music.url, target: '_blank', rel: 'noopener' }, label) : h('span', {}, label);
-    return h('span', { class: 'line-item', title: music.playing ? 'Playing on Spotify' : 'Paused on Spotify' },
+    return h('span', { class: 'line-item', title: music.playing ? T('Playing on Spotify') : T('Paused on Spotify') },
       h('span', { class: 'eq' + (music.playing ? '' : ' paused') }, h('i'), h('i'), h('i')), text);
   }
 
@@ -962,23 +964,23 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     const host = $('[data-mode]');
     host.replaceChildren();
     if (!syncing) {
-      host.append(iconEl(ICON.hand), h('span', {}, h('b', {}, 'Paused.'), ' Nothing is sent or written to your clipboard.'));
+      host.append(iconEl(ICON.hand), h('span', {}, h('b', {}, T("Paused.")), ' ', T("Nothing is sent or written to your clipboard.")));
       return;
     }
     if (readMode === 'auto') {
-      host.append(iconEl(ICON.bolt), h('span', {}, h('b', {}, 'Auto-sync on.'), ' Copy anywhere, then come back to this tab and it sends.'));
+      host.append(iconEl(ICON.bolt), h('span', {}, h('b', {}, T("Auto-sync on.")), ' ', T("Copy anywhere, then come back to this tab and it sends.")));
     } else if (readMode === 'prompt') {
-      host.append(iconEl(ICON.bolt), h('span', {}, h('b', {}, 'Turn on auto-sync.'), ' Let this tab read your clipboard when you switch to it.'),
+      host.append(iconEl(ICON.bolt), h('span', {}, h('b', {}, T("Turn on auto-sync.")), ' ', T("Let this tab read your clipboard when you switch to it.")),
         h('button', { class: 'btn btn-sm btn-accent', type: 'button', onclick: async () => {
           const text = await readClipboard();
-          if (text != null) { lastClip = text; readMode = 'auto'; renderMode(); toast('Auto-sync on', { icon: '⚡' }); }
-        } }, 'Allow'));
+          if (text != null) { lastClip = text; readMode = 'auto'; renderMode(); toast(T('Auto-sync on'), { icon: '⚡' }); }
+        } }, T('Allow')));
     } else if (readMode === 'denied') {
-      host.append(iconEl(ICON.hand), h('span', {}, h('b', {}, 'Clipboard access blocked.'), touch ? ' Paste into the box below to send.' : ' Press Ctrl+V on this page to send, or allow access from the lock icon in the address bar.'));
+      host.append(iconEl(ICON.hand), h('span', {}, h('b', {}, T('Clipboard access blocked.')), ' ', touch ? T('Paste into the box below to send.') : T('Press Ctrl+V on this page to send, or allow access from the lock icon in the address bar.')));
     } else {
       host.append(iconEl(ICON.hand), touch
-        ? h('span', {}, h('b', {}, 'Paste into the box below to send.'), ' Or tap Send my clipboard.')
-        : h('span', {}, h('b', {}, 'Press Ctrl+V on this page to send.'), ' This browser only lets a page read the clipboard after a keypress.'));
+        ? h('span', {}, h('b', {}, T("Paste into the box below to send.")), ' ', T("Or tap Send my clipboard."))
+        : h('span', {}, h('b', {}, T("Press Ctrl+V on this page to send.")), ' ', T("This browser only lets a page read the clipboard after a keypress.")));
     }
   }
 
@@ -995,10 +997,11 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     $('[data-clear-clips]').hidden = !clips.length && !files.items.some((f) => f.status !== 'active');
     if (!clips.length && !files.items.length) {
       clipEls.clear();
-      host.replaceChildren(h('li', { class: 'clip-empty' },
-        ...(touch
-          ? ['Nothing shared yet. Paste text into the box above, or send a file.']
-          : ['Nothing shared yet. Copy something and press ', h('kbd', {}, 'Ctrl'), h('kbd', {}, 'V'), ' here, or drop a file anywhere.'])));
+      const empty = h('li', { class: 'clip-empty' });
+      empty.innerHTML = touch
+        ? T('Nothing shared yet. Paste text into the box above, or send a file.')
+        : T('Nothing shared yet. Copy something and press <kbd>Ctrl</kbd><kbd>V</kbd> here, or drop a file anywhere.');
+      host.replaceChildren(empty);
       return;
     }
     const now = Date.now();
@@ -1030,7 +1033,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
   }
 
   function clipEl(c: Clip, enter: boolean, now: number) {
-    const copyBtn = h('button', { class: 'btn btn-sm btn-ghost icon-btn copy', type: 'button', 'aria-label': 'Copy' });
+    const copyBtn = h('button', { class: 'btn btn-sm btn-ghost icon-btn copy', type: 'button', 'aria-label': T('Copy') });
     copyBtn.innerHTML = ICON.copy;
     copyBtn.addEventListener('click', async () => {
       if (await writeClipboard(c.text)) {
@@ -1043,14 +1046,14 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       }
     });
     const state = c.dir === 'in'
-      ? c.landed ? h('span', { class: 'landed' }, '✓ on clipboard') : pending?.id === c.id ? h('span', { class: 'waiting' }, 'waiting for focus') : null
+      ? c.landed ? h('span', { class: 'landed' }, T('✓ on clipboard')) : pending?.id === c.id ? h('span', { class: 'waiting' }, T('waiting for focus')) : null
       : null;
     return h('li', { class: `clip ${c.dir}${enter ? ' enter' : ''}` },
       h('div', { class: 'clip-meta' },
         h('span', {}, c.dir === 'in' ? '↘' : '↗'),
-        h('span', { class: 'who' }, c.dir === 'out' ? 'You' : c.fromName),
+        h('span', { class: 'who' }, c.dir === 'out' ? T('You') : c.fromName),
         h('span', {}, timeAgo(c.at, now)),
-        c.via !== 'p2p' && h('span', { class: 'via', title: 'Went through the server because a direct link was not available' }, 'relay'),
+        c.via !== 'p2p' && h('span', { class: 'via', title: T('Went through the server because a direct link was not available') }, T('relay')),
         state,
       ),
       h('div', { class: 'clip-text' }, c.text),
@@ -1059,21 +1062,21 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
   }
 
   function fileEl(f: FileItem, enter: boolean, now: number) {
-    const peerNames = (ids: string[]) => ids.map((id) => nameOf(id)?.name ?? 'someone').join(', ');
+    const peerNames = (ids: string[]) => ids.map((id) => nameOf(id)?.name ?? T('someone')).join(', ');
     const who = f.dir === 'out'
-      ? `You → ${f.peers.length === 1 ? peerNames(f.peers) : `${f.peers.length} people`}`
-      : nameOf(f.from)?.name ?? 'Someone';
+      ? T('You → {who}', { who: f.peers.length === 1 ? peerNames(f.peers) : T('{n} people', { n: f.peers.length }) })
+      : nameOf(f.from)?.name ?? T('Someone');
     const state =
-      f.status === 'active' ? h('span', { class: 'waiting' }, f.dir === 'in' ? 'receiving ' : 'sending ', h('span', { 'data-pct': true }, '0%'))
-      : f.status === 'done' ? h('span', { class: 'landed' }, f.dir === 'in' ? '✓ received' : '✓ delivered')
-      : f.status === 'partial' ? h('span', { class: 'waiting' }, `missed ${peerNames(f.missed ?? [])}`)
-      : h('span', { class: 'failed' }, f.dir === 'in' ? 'interrupted' : 'not delivered');
+      f.status === 'active' ? h('span', { class: 'waiting' }, f.dir === 'in' ? T('receiving') + ' ' : T('sending') + ' ', h('span', { 'data-pct': true }, '0%'))
+      : f.status === 'done' ? h('span', { class: 'landed' }, f.dir === 'in' ? T('✓ received') : T('✓ delivered'))
+      : f.status === 'partial' ? h('span', { class: 'waiting' }, T('missed {who}', { who: peerNames(f.missed ?? []) }))
+      : h('span', { class: 'failed' }, f.dir === 'in' ? T('interrupted') : T('not delivered'));
     const ext = (f.name.includes('.') ? f.name.split('.').pop()! : 'file').slice(0, 4).toUpperCase();
     let action: HTMLElement | null = null;
     if (f.dir === 'in' && f.status === 'done' && f.url) {
-      action = h('a', { class: 'btn btn-sm btn-accent', href: f.url, download: f.name, title: `Save ${f.name}` });
+      action = h('a', { class: 'btn btn-sm btn-accent', href: f.url, download: f.name, title: T('Save {file}', { file: f.name }) });
       action.innerHTML = ICON.download;
-      action.append('Save');
+      action.append(T('Save'));
       action.addEventListener('click', () => { f.saved = true; });
     }
     return h('li', { class: `clip file ${f.dir}${enter ? ' enter' : ''}` },
@@ -1081,7 +1084,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
         h('span', {}, f.dir === 'in' ? '↘' : '↗'),
         h('span', { class: 'who' }, who),
         h('span', {}, timeAgo(f.at, now)),
-        h('span', { class: 'via', title: 'Sent straight between browsers. The file never touched a server.' }, 'p2p'),
+        h('span', { class: 'via', title: T('Sent straight between browsers. The file never touched a server.') }, 'p2p'),
         state,
       ),
       h('div', { class: 'file-row' },
@@ -1124,7 +1127,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     ($('[data-timer-bar]')).style.transform = `scaleX(${Math.max(0, Math.min(1, left / total))})`;
     const mm = Math.floor(Math.max(0, left) / 60000);
     const ss = Math.floor((Math.max(0, left) % 60000) / 1000).toString().padStart(2, '0');
-    $('[data-timer-label]').textContent = !otp ? ' ' : expired ? 'Expired. Get a new code, or use the invite link.' : `Expires in ${mm}:${ss} · click the code to copy`;
+    $('[data-timer-label]').textContent = !otp ? ' ' : expired ? T('Expired. Get a new code, or use the invite link.') : T('Expires in {time} · click the code to copy', { time: `${mm}:${ss}` });
     const newBtn = $<HTMLButtonElement>('[data-new-code]');
     newBtn.classList.toggle('btn-accent', expired);
     newBtn.classList.toggle('btn-ghost', !expired);

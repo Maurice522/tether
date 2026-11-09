@@ -1,4 +1,7 @@
+import type { Lang } from '../i18n';
 import type { Faq } from './faq';
+import { guidesDe } from './guides.de';
+import { guidesFr } from './guides.fr';
 
 export interface GuideSection {
   h2: string;
@@ -33,7 +36,7 @@ const HOW_TO_START: GuideSection = {
   ],
 };
 
-export const guides: Guide[] = [
+const en: Guide[] = [
   {
     slug: 'sync-clipboard',
     title: 'Sync Clipboard Between Computers — Free, No Install | Tether',
@@ -271,4 +274,7 @@ export const guides: Guide[] = [
   },
 ];
 
-export const guideBySlug = (slug: string) => guides.find((g) => g.slug === slug);
+/** Landing pages per language. Slugs are shared across languages so /de/<slug>/ pairs with /<slug>/ for hreflang. */
+export const guides: Record<Lang, Guide[]> = { en, de: guidesDe, fr: guidesFr };
+
+export const guideBySlug = (lang: Lang, slug: string) => guides[lang].find((g) => g.slug === slug);

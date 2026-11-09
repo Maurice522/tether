@@ -1,28 +1,34 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import { LANG_COOKIE, pickLang, translator } from '../../i18n';
+
+// Room links are shared between people who speak different languages, so the URL has no language:
+// each person sees their own choice (cookie set by the switcher), else their browser's language.
+const lang = pickLang(Astro.cookies.get(LANG_COOKIE)?.value, Astro.request.headers.get('accept-language'));
+const T = translator(lang);
 
 const id = String(Astro.params.id ?? '').toUpperCase();
 if (!/^[0-9A-Z]{8}$/.test(id)) return Astro.redirect('/');
 const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
 ---
-<Layout title={`Session ${pretty} — Tether`} noindex>
+<Layout lang={lang} title={T("Session {id} — Tether", { id: pretty })} noindex>
   <div slot="center" class="session-pill pill mono" data-conn>
     <span class="dot"></span>
-    <span data-conn-label>Connecting…</span>
+    <span data-conn-label>{T("Connecting…")}</span>
   </div>
 
   <div class="room wrap" data-sid={id}>
     <!-- Join / problem states -->
     <section class="gatecard card" data-view="join" hidden>
-      <p class="eyebrow">Session <span class="mono">{pretty}</span></p>
-      <h1 data-join-title>Enter the <span class="serif">code</span></h1>
-      <p class="muted" data-join-sub>Ask someone in the session for the 6-digit code, or for an invite link.</p>
+      <p class="eyebrow">{T("Session")} <span class="mono">{pretty}</span></p>
+      <h1 data-join-title set:html={T("Enter the <span class=\"serif\">code</span>")} />
+      <p class="muted" data-join-sub>{T("Ask someone in the session for the 6-digit code, or for an invite link.")}</p>
       <form class="join-row" data-join-form autocomplete="off">
-        <input class="field mono otp-field" name="otp" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" autocomplete="one-time-code" aria-label="6-digit code" />
-        <button class="btn btn-accent" type="submit">Join</button>
+        <input class="field mono otp-field" name="otp" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" autocomplete="one-time-code" aria-label={T("6-digit code")} />
+        <button class="btn btn-accent" type="submit">{T("Join")}</button>
       </form>
       <p class="join-msg" data-join-msg role="alert" hidden></p>
-      <a href="/" class="btn btn-ghost btn-sm back">← Start your own session</a>
+      <a href={lang === 'en' ? '/' : `/${lang}/`} class="btn btn-ghost btn-sm back">{T("← Start your own session")}</a>
     </section>
 
     <section class="room-grid" data-view="room" hidden>
@@ -31,22 +37,22 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
         <div class="panel card mesh-panel">
           <header class="panel-head">
             <div>
-              <p class="eyebrow">Who's here</p>
-              <h2><span data-count>1</span><span class="muted">/4</span> linked</h2>
+              <p class="eyebrow">{T("Who's here")}</p>
+              <h2><span data-count>1</span><span class="muted">/4</span> {T("linked")}</h2>
             </div>
-            <button class="btn btn-sm leave-btn" data-leave title="Leave this session">
+            <button class="btn btn-sm leave-btn" data-leave title={T("Leave this session")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></svg>
-              <span data-leave-label>Leave</span>
+              <span data-leave-label>{T("Leave")}</span>
             </button>
           </header>
           <div class="constellation" data-constellation>
             <svg class="links" viewBox="0 0 100 100" preserveAspectRatio="none" data-links></svg>
           </div>
           <div class="alone" data-alone hidden>
-            <div class="qr qr-lg" data-qr-big aria-label="QR code with the invite link" role="img"></div>
+            <div class="qr qr-lg" data-qr-big aria-label={T("QR code with the invite link")} role="img"></div>
             <div class="alone-copy">
-              <p class="alone-title">Waiting for someone to join<span class="dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></p>
-              <p class="muted">Scan this with your phone's camera to join instantly, or share the code or link.</p>
+              <p class="alone-title">{T("Waiting for someone to join")}<span class="dots" aria-hidden="true"><i>.</i><i>.</i><i>.</i></span></p>
+              <p class="muted">{T("Scan this with your phone's camera to join instantly, or share the code or link.")}</p>
             </div>
           </div>
         </div>
@@ -59,15 +65,15 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
         <div class="panel card invite">
           <header class="panel-head">
             <div>
-              <p class="eyebrow">Invite</p>
-              <h2>Code to <span class="serif">join</span></h2>
+              <p class="eyebrow">{T("Invite")}</p>
+              <h2 set:html={T("Code to <span class=\"serif\">join</span>")} />
             </div>
-            <button class="btn btn-ghost btn-sm" data-new-code title="Get a new code (the old one stops working)">
+            <button class="btn btn-ghost btn-sm" data-new-code title={T("Get a new code (the old one stops working)")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
-              New code
+              {T("New code")}
             </button>
           </header>
-          <button class="flap" data-flap aria-label="Copy code" title="Click to copy">
+          <button class="flap" data-flap aria-label={T("Copy code")} title={T("Click to copy")}>
             {Array.from({ length: 6 }, () => <span class="flap-cell"><span class="flap-digit">·</span></span>)}
           </button>
           <div class="timer"><div class="timer-bar" data-timer-bar></div></div>
@@ -75,35 +81,35 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
           <div class="invite-actions">
             <button class="btn btn-accent" data-copy-invite>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>
-              Copy invite link
+              {T("Copy invite link")}
             </button>
-            <button class="btn icon-btn" data-qr-toggle aria-expanded="false" title="Show a QR code to scan with a phone" aria-label="Show QR code">
+            <button class="btn icon-btn" data-qr-toggle aria-expanded="false" title={T("Show a QR code to scan with a phone")} aria-label={T("Show QR code")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h3v3"/></svg>
             </button>
-            <button class="btn" data-share hidden>Share…</button>
+            <button class="btn" data-share hidden>{T("Share…")}</button>
           </div>
           <div class="qr-pop" data-qr-pop hidden>
-            <div class="qr" data-qr aria-label="QR code with the invite link" role="img"></div>
-            <p class="fine muted">Point a phone camera at this to join without typing.</p>
+            <div class="qr" data-qr aria-label={T("QR code with the invite link")} role="img"></div>
+            <p class="fine muted">{T("Point a phone camera at this to join without typing.")}</p>
           </div>
-          <p class="fine muted">The invite link skips the code. Anyone with it can join while there's a free seat.</p>
+          <p class="fine muted">{T("The invite link skips the code. Anyone with it can join while there's a free seat.")}</p>
         </div>
 
         <div class="panel card clips">
           <header class="panel-head">
             <div>
-              <p class="eyebrow">Shared clipboard</p>
-              <h2>Clips</h2>
+              <p class="eyebrow">{T("Shared clipboard")}</p>
+              <h2>{T("Clips")}</h2>
             </div>
             <div class="clips-tools">
-              <button class="btn btn-ghost btn-sm icon-btn" type="button" data-notify title="Notify me when something arrives while I'm in another app" aria-label="Notifications" aria-pressed="false">
+              <button class="btn btn-ghost btn-sm icon-btn" type="button" data-notify title={T("Notify me when something arrives while I'm in another app")} aria-label={T("Notifications")} aria-pressed="false">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9M10 20a2 2 0 0 0 4 0"/></svg>
               </button>
-              <button class="btn btn-ghost btn-sm" type="button" data-clear-clips hidden title="Clear the list on this device">Clear</button>
-            <label class="switch" title="Pause syncing on this device">
+              <button class="btn btn-ghost btn-sm" type="button" data-clear-clips hidden title={T("Clear the list on this device")}>{T("Clear")}</button>
+            <label class="switch" title={T("Pause syncing on this device")}>
               <input type="checkbox" data-sync-toggle checked />
               <span class="track"><span class="thumb"></span></span>
-              <span class="switch-label" data-sync-label>Syncing</span>
+              <span class="switch-label" data-sync-label>{T("Syncing")}</span>
             </label>
             </div>
           </header>
@@ -112,29 +118,29 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
 
           <div class="share-tray" data-share-tray hidden>
             <div class="share-tray-body">
-              <p class="eyebrow">Shared from another app</p>
+              <p class="eyebrow">{T("Shared from another app")}</p>
               <p class="share-tray-what" data-share-what></p>
             </div>
             <div class="share-tray-actions">
-              <button type="button" class="btn btn-sm btn-ghost" data-share-discard>Discard</button>
-              <button type="button" class="btn btn-sm btn-accent" data-share-send>Send to everyone</button>
+              <button type="button" class="btn btn-sm btn-ghost" data-share-discard>{T("Discard")}</button>
+              <button type="button" class="btn btn-sm btn-accent" data-share-send>{T("Send to everyone")}</button>
             </div>
           </div>
 
           <form class="composer" data-composer>
-            <textarea rows="2" placeholder="Type or paste here. Enter sends, Shift+Enter for a new line." data-composer-input aria-label="Text to send"></textarea>
+            <textarea rows="2" placeholder={T("Type or paste here. Enter sends, Shift+Enter for a new line.")} data-composer-input aria-label={T("Text to send")}></textarea>
             <div class="composer-actions">
               <div class="composer-tools">
-                <button type="button" class="btn btn-sm" data-send-clipboard title="Send what's on your clipboard">
+                <button type="button" class="btn btn-sm" data-send-clipboard title={T("Send what's on your clipboard")}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1.2"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg>
-                  Send my clipboard
+                  {T("Send my clipboard")}
                 </button>
-                <button type="button" class="btn btn-sm" data-send-file title="Send files to everyone (or drop them on a person's card to send just to them)">
+                <button type="button" class="btn btn-sm" data-send-file title={T("Send files to everyone (or drop them on a person's card to send just to them)")}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m20 11.5-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>
-                  Send file
+                  {T("Send file")}
                 </button>
               </div>
-              <button type="submit" class="btn btn-sm btn-accent icon-btn" aria-label="Send">
+              <button type="submit" class="btn btn-sm btn-accent icon-btn" aria-label={T("Send")}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
               </button>
             </div>
@@ -153,22 +159,22 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
   <div class="drop-veil" data-drop-veil hidden>
     <div class="drop-card">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg>
-      <strong data-drop-label>Drop to send to everyone</strong>
-      <span>Goes straight to their browser, never to a server.</span>
+      <strong data-drop-label>{T("Drop to send to everyone")}</strong>
+      <span>{T("Goes straight to their browser, never to a server.")}</span>
     </div>
   </div>
 
   <dialog class="sheet" id="app-picker" aria-labelledby="picker-title">
     <form method="dialog" class="picker">
-      <p class="eyebrow">Your status</p>
-      <h2 id="picker-title">What are you <span class="serif">working in?</span></h2>
-      <p class="muted fine">Websites can't see your other apps, so pick one and it shows next to your name.</p>
+      <p class="eyebrow">{T("Your status")}</p>
+      <h2 id="picker-title" set:html={T("What are you <span class=\"serif\">working in?</span>")} />
+      <p class="muted fine">{T("Websites can't see your other apps, so pick one and it shows next to your name.")}</p>
       <div class="presets" data-presets></div>
       <div class="custom-row">
-        <input class="field" name="custom" maxlength="40" placeholder="Something else…" data-custom-app />
-        <button class="btn" value="custom">Set</button>
+        <input class="field" name="custom" maxlength="40" placeholder={T("Something else…")} data-custom-app />
+        <button class="btn" value="custom">{T("Set")}</button>
       </div>
-      <button class="btn btn-ghost btn-sm" value="clear">Clear status</button>
+      <button class="btn btn-ghost btn-sm" value="clear">{T("Clear status")}</button>
     </form>
   </dialog>
 </Layout>

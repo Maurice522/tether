@@ -1,30 +1,36 @@
 ---
+import { DEFAULT_LANG, localePath, translator, type Lang } from '../i18n';
 import { guides } from '../content/guides';
+
+interface Props { lang?: Lang }
+const { lang = DEFAULT_LANG } = Astro.props;
+const T = translator(lang);
+const home = localePath(lang, '/');
 ---
 <footer class="site-foot">
   <div class="wrap foot-grid">
     <div class="foot-brand">
-      <a href="/" class="foot-logo">tether</a>
-      <p>Sync your clipboard and share files securely between PCs, Mac and phone. Browser to browser, nothing uploaded.</p>
+      <a href={home} class="foot-logo">tether</a>
+      <p>{T('Sync your clipboard and share files securely between PCs, Mac and phone. Browser to browser, nothing uploaded.')}</p>
     </div>
-    <nav aria-label="Ways to use Tether">
-      <p class="eyebrow">Use Tether to</p>
+    <nav aria-label={T('Ways to use Tether')}>
+      <p class="eyebrow">{T('Use Tether to')}</p>
       <ul>
-        {guides.map((g) => <li><a href={`/${g.slug}/`}>{g.nav}</a></li>)}
+        {guides[lang].map((g) => <li><a href={localePath(lang, `/${g.slug}/`)}>{g.nav}</a></li>)}
       </ul>
     </nav>
     <nav aria-label="Tether">
       <p class="eyebrow">Tether</p>
       <ul>
-        <li><a href="/?start=1">Start a session</a></li>
-        <li><a href="/#faq">FAQ</a></li>
-        <li><a href="/privacy/">Privacy &amp; security</a></li>
+        <li><a href={`${home}?start=1`}>{T('Start a session')}</a></li>
+        <li><a href={`${home}#faq`}>{T('FAQ')}</a></li>
+        <li><a href={localePath(lang, '/privacy/')}>{T('Privacy & security')}</a></li>
       </ul>
     </nav>
   </div>
   <div class="wrap foot-base">
     <span class="mono">© {new Date().getFullYear()} tethersecure.com</span>
-    <span>Free · No sign-up · Sessions end after 12 hours of inactivity</span>
+    <span>{T('Free · No sign-up · Sessions end after 12 hours of inactivity')}</span>
   </div>
 </footer>
 

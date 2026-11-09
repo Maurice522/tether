@@ -3,6 +3,7 @@
  * (no client secret). Needs PUBLIC_SPOTIFY_CLIENT_ID and the redirect URI
  * <origin>/spotify/callback registered in the Spotify dashboard.
  */
+import { T } from '../i18n/client';
 import type { Music } from '../lib/types';
 
 const CLIENT_ID: string | undefined = import.meta.env.PUBLIC_SPOTIFY_CLIENT_ID || undefined;
@@ -52,7 +53,7 @@ async function tokenRequest(params: Record<string, string>): Promise<Tokens> {
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: CLIENT_ID!, ...params }),
   });
-  if (!res.ok) throw new Error('Spotify sign-in failed');
+  if (!res.ok) throw new Error(T('Spotify sign-in failed'));
   const d = await res.json();
   return { access: d.access_token, refresh: d.refresh_token ?? params.refresh_token, expiresAt: Date.now() + (d.expires_in - 60) * 1000 };
 }
@@ -62,9 +63,9 @@ export async function finishSpotifyLogin(): Promise<string> {
   const q = new URLSearchParams(location.search);
   const pkce = JSON.parse(sessionStorage.getItem(PKCE_KEY) ?? 'null');
   sessionStorage.removeItem(PKCE_KEY);
-  if (!pkce) throw new Error('Sign-in expired, try again.');
-  if (q.get('error')) throw Object.assign(new Error('Spotify access was not granted.'), { back: pkce.back });
-  if (q.get('state') !== pkce.state) throw Object.assign(new Error('Sign-in state mismatch.'), { back: pkce.back });
+  if (!pkce) throw new Error(T('Sign-in expired, try again.'));
+  if (q.get('error')) throw Object.assign(new Error(T('Spotify access was not granted.')), { back: pkce.back });
+  if (q.get('state') !== pkce.state) throw Object.assign(new Error(T('Sign-in state mismatch.')), { back: pkce.back });
   save(await tokenRequest({ grant_type: 'authorization_code', code: q.get('code')!, redirect_uri: redirectUri(), code_verifier: pkce.verifier }));
   return pkce.back || '/';
 }

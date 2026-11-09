@@ -1,0 +1,11 @@
+---
+import Guide from '../../components/views/Guide.astro';
+import { guides } from '../../content/guides';
+
+export const prerender = true;
+export function getStaticPaths() {
+  return guides.de.map((guide) => ({ params: { guide: guide.slug }, props: { guide } }));
+}
+const { guide } = Astro.props;
+---
+<Guide lang="de" guide={guide} />

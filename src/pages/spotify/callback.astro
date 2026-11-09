@@ -6,6 +6,10 @@ export const prerender = true;
   <section class="wrap cb">
     <p class="eyebrow">Spotify</p>
     <h1 data-msg>Connecting…</h1>
+    <script is:inline>
+      // Static page: show it in the visitor's chosen language.
+      try { var l = (document.cookie.match(/(?:^|; )tether_lang=(en|de|fr)/) || [])[1]; if (l) document.documentElement.lang = l; } catch (e) {}
+    </script>
   </section>
 </Layout>
 

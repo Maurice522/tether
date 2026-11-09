@@ -1,0 +1,42 @@
+---
+import SiteFooter from '../SiteFooter.astro';
+import Layout from '../../layouts/Layout.astro';
+import { privacy } from '../../content/privacy';
+import { alternatesFor, localePath, type Lang } from '../../i18n';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const c = privacy[lang];
+---
+<Layout lang={lang} alternates={alternatesFor('/privacy/')} title={c.title} description={c.description}>
+  <article class="wrap doc">
+    <p class="eyebrow">{c.eyebrow}</p>
+    <h1 set:html={c.h1} />
+    <p class="lede">{c.lede}</p>
+
+    {c.sections.map((sec) => (
+      <section>
+        <h2>{sec.h2}</h2>
+        {sec.paras?.map((p) => <p>{p}</p>)}
+        {sec.list && <ul>{sec.list.map((li) => <li set:html={li} />)}</ul>}
+        {sec.after && <p>{sec.after}</p>}
+      </section>
+    ))}
+
+    <p class="back"><a href={localePath(lang, '/')}>{c.back}</a></p>
+  </article>
+  <SiteFooter lang={lang} />
+</Layout>
+
+<style>
+  .doc { max-width: 720px; padding-block: 48px 80px; }
+  .doc h1 { margin: 12px 0 16px; font-size: clamp(32px, 5vw, 48px); line-height: 1.02; letter-spacing: -0.045em; font-weight: 600; }
+  .doc h1 :global(.serif) { color: var(--accent-text); font-size: 1.1em; }
+  .lede { font-size: 17px; color: var(--muted); margin: 0 0 32px; }
+  section { padding-block: 18px; border-top: 1px solid var(--line); }
+  h2 { margin: 0 0 8px; font-size: 18px; letter-spacing: -0.02em; }
+  section p, li { color: var(--muted); }
+  section :global(b) { color: var(--text); font-weight: 500; }
+  ul { padding-left: 18px; display: grid; gap: 8px; }
+  .back { margin-top: 32px; }
+</style>
