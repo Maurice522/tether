@@ -2,6 +2,7 @@ import type { MemberStatus, Music, PublicMember } from '../lib/types';
 import { detectReadMode, readClipboard, writeClipboard, type ReadMode } from './clipboard';
 import { ensureName, hueFor, initials } from './identity';
 import { FileTransfers, formatBytes, type FileItem } from './files';
+import type { Verdict } from './filecheck';
 import { Mesh, type PeerState } from './mesh';
 import { connectSpotify, disconnectSpotify, nowPlaying, spotifyAvailable, spotifyConnected } from './spotify';
 import { renderSVG } from 'uqr';
@@ -190,6 +191,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
         notify(T('{who} sent a file', { who }), T('{file} · tap to open Tether and save it', { file: item.name }));
       }
       if (item.status === 'failed') toast(T('{file} from {who} was interrupted', { file: item.name, who }), { error: true });
+      if (item.status === 'blocked') toast(T('Blocked {file} from {who}: programs and scripts are not allowed.', { file: item.name, who }), { error: true });
     }
     if (prev !== item.status && item.dir === 'out' && item.status === 'partial') {
       toast(T("{file} didn't reach {who}", { file: item.name, who: item.missed!.map((id) => nameOf(id)?.name ?? T('someone')).join(', ') }), { error: true });
@@ -198,7 +200,13 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
   });
 
   /** Send to everyone online, or just `only`. Files need a direct link: they never go through the server. */
-  function sendFiles(list: FileList | File[], only?: string) {
+  function blockedText(name: string, v: Verdict): string {
+    if (v.reason === 'content') return T("{file} is a program in disguise, so it can't be sent.", { file: name });
+    if (v.reason === 'archive') return T("{file} contains a program ({inner}), so it can't be sent.", { file: name, inner: v.detail ?? '' });
+    return T("Programs and scripts (.{ext}) can't be sent through Tether, to keep everyone safe.", { ext: v.detail ?? '' });
+  }
+
+  async function sendFiles(list: FileList | File[], only?: string) {
     const picked = [...list];
     if (!picked.length) return;
     const targets = members.filter((m) => m.id !== myId && m.online && (!only || m.id === only));
@@ -209,16 +217,19 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       toast(T("Files only travel over a direct link, and there isn't one yet. Try again in a moment."), { error: true });
       return;
     }
-    let queued = 0;
+    const sent: string[] = [];
     for (const file of picked) {
-      if (files.send(file, direct.map((m) => m.id))) {
-        queued++;
+      const r = await files.send(file, direct.map((m) => m.id));
+      if ('tooBig' in r) toast(T('{file} is over 500 MB, too big to send.', { file: file.name }), { error: true });
+      else if ('blocked' in r) toast(blockedText(file.name, r.blocked), { error: true });
+      else {
+        sent.push(file.name);
         for (const m of direct) pulse(myId, m.id);
-      } else toast(T('{file} is over 500 MB, too big to send.', { file: file.name }), { error: true });
+      }
     }
-    if (!queued) return;
+    if (!sent.length) return;
     const names = direct.length === 1 ? direct[0].name : T('{n} people', { n: direct.length });
-    toast(T('Sending {what} to {who}', { what: queued === 1 ? picked[0].name : T('{n} files', { n: queued }), who: names }), { icon: '↗' });
+    toast(T('Sending {what} to {who}', { what: sent.length === 1 ? sent[0] : T('{n} files', { n: sent.length }), who: names }), { icon: '↗' });
     if (indirect.length) toast(T("{who} has no direct link, so they won't get it.", { who: indirect.map((m) => m.name).join(', ') }), { error: true });
   }
 
@@ -1070,6 +1081,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       f.status === 'active' ? h('span', { class: 'waiting' }, f.dir === 'in' ? T('receiving') + ' ' : T('sending') + ' ', h('span', { 'data-pct': true }, '0%'))
       : f.status === 'done' ? h('span', { class: 'landed' }, f.dir === 'in' ? T('✓ received') : T('✓ delivered'))
       : f.status === 'partial' ? h('span', { class: 'waiting' }, T('missed {who}', { who: peerNames(f.missed ?? []) }))
+      : f.status === 'blocked' ? h('span', { class: 'failed', title: T('Programs and scripts are blocked to keep everyone safe') }, T('blocked'))
       : h('span', { class: 'failed' }, f.dir === 'in' ? T('interrupted') : T('not delivered'));
     const ext = (f.name.includes('.') ? f.name.split('.').pop()! : 'file').slice(0, 4).toUpperCase();
     let action: HTMLElement | null = null;

@@ -307,4 +307,10 @@ export const fr: Record<string, string> = {
   '{n}s ago': 'il y a {n} s',
   '{n}m ago': 'il y a {n} min',
   '{n}h ago': 'il y a {n} h',
+  "{file} is a program in disguise, so it can't be sent.": '{file} est un programme déguisé et ne peut donc pas être envoyé.',
+  "{file} contains a program ({inner}), so it can't be sent.": '{file} contient un programme ({inner}) et ne peut donc pas être envoyé.',
+  "Programs and scripts (.{ext}) can't be sent through Tether, to keep everyone safe.": 'Les programmes et scripts (.{ext}) ne peuvent pas être envoyés via Tether, pour la sécurité de tous.',
+  'Blocked {file} from {who}: programs and scripts are not allowed.': '{file} de {who} bloqué : les programmes et scripts ne sont pas autorisés.',
+  'Programs and scripts are blocked to keep everyone safe': 'Les programmes et scripts sont bloqués pour la sécurité de tous',
+  'blocked': 'bloqué',
 };

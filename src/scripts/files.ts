@@ -6,6 +6,7 @@
  * Files never touch the server, so a peer needs a direct link to receive one.
  */
 import type { Mesh } from './mesh';
+import { blockedName, checkFile, looksExecutable, type Verdict } from './filecheck';
 
 export const MAX_FILE = 500 * 1024 * 1024;
 const CHUNK = 64 * 1024;               // safe message size across Chrome/Firefox/Safari
@@ -27,7 +28,7 @@ export interface FileItem {
   peers: string[];
   /** 0..1 across all recipients. */
   progress: number;
-  status: 'active' | 'done' | 'partial' | 'failed';
+  status: 'active' | 'done' | 'partial' | 'failed' | 'blocked';
   /** Who didn't get it, for partial/failed sends. */
   missed?: string[];
   url?: string;
@@ -36,6 +37,8 @@ export interface FileItem {
 }
 
 interface Incoming { item: FileItem; chunks: ArrayBuffer[]; got: number }
+
+export type SendResult = FileItem | { tooBig: true } | { blocked: Verdict };
 
 const safeName = (v: unknown) =>
   (typeof v === 'string' && v.trim() ? v : 'file').slice(0, 200).replace(/[\\/:*?"<>|\x00-\x1f]/g, '_');
@@ -69,9 +72,11 @@ export class FileTransfers {
 
   constructor(private mesh: Mesh, private me: string, private changed: (item: FileItem) => void) {}
 
-  /** Queue `file` for each peer. Returns null if it's too big. */
-  send(file: File, peerIds: string[]): FileItem | null {
-    if (file.size > MAX_FILE) return null;
+  /** Check `file`, then queue it for each peer. */
+  async send(file: File, peerIds: string[]): Promise<SendResult> {
+    if (file.size > MAX_FILE) return { tooBig: true };
+    const verdict = await checkFile(file);
+    if (!verdict.ok) return { blocked: verdict };
     const item: FileItem = {
       kind: 'file', id: crypto.randomUUID(), name: safeName(file.name), size: file.size, mime: safeMime(file.type),
       from: this.me, at: Date.now(), dir: 'out', peers: peerIds, progress: 0, status: 'active',
@@ -97,6 +102,7 @@ export class FileTransfers {
         from, at: Date.now(), dir: 'in', peers: [from], progress: size ? 0 : 1, status: 'active',
       };
       this.items.unshift(item);
+      if (blockedName(item.name)) { this.finish(item, 'blocked'); return true; } // never collect its bytes
       this.incoming.set(from, { item, chunks: [], got: 0 });
       this.changed(item);
       return true;
@@ -106,9 +112,14 @@ export class FileTransfers {
       if (!inc || inc.item.id !== msg.id) return true;
       this.incoming.delete(from);
       if (inc.got !== inc.item.size) { this.finish(inc.item, 'failed'); return true; }
-      inc.item.url = URL.createObjectURL(new Blob(inc.chunks, { type: inc.item.mime }));
-      inc.item.progress = 1;
-      this.finish(inc.item, 'done');
+      const blob = new Blob(inc.chunks, { type: inc.item.mime });
+      inc.chunks = [];
+      void checkFile(Object.assign(blob, { name: inc.item.name })).then((v) => {
+        if (!v.ok) { this.finish(inc.item, 'blocked'); return; }
+        inc.item.url = URL.createObjectURL(blob);
+        inc.item.progress = 1;
+        this.finish(inc.item, 'done');
+      });
       return true;
     }
     return false;
@@ -117,6 +128,11 @@ export class FileTransfers {
   binary(from: string, data: ArrayBuffer) {
     const inc = this.incoming.get(from);
     if (!inc) return;
+    if (!inc.got && looksExecutable(new Uint8Array(data, 0, Math.min(8, data.byteLength)))) {
+      this.incoming.delete(from); // a program wearing another name: drop it before keeping any of it
+      this.finish(inc.item, 'blocked');
+      return;
+    }
     inc.chunks.push(data);
     inc.got += data.byteLength;
     if (inc.got > inc.item.size) { this.fail(from); return; }
