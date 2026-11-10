@@ -1026,7 +1026,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     const els = entries.map((c) => {
       const isFile = 'kind' in c;
       const key = isFile
-        ? JSON.stringify([c.status, c.missed, c.keptBy, !!c.url, timeAgo(c.at, now)])
+        ? JSON.stringify([c.status, c.missed, c.keptBy, !!c.url, !!c.saved, timeAgo(c.at, now)])
         : JSON.stringify([c.landed, pending?.id === c.id, c.via, timeAgo(c.at, now)]);
       const cached = clipEls.get(c.id);
       if (cached?.key === key) return cached.el;
@@ -1078,6 +1078,12 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     );
   }
 
+  function savedBadge() {
+    const el = h('span', { class: 'file-saved', role: 'img', 'aria-label': T('Saved to this device') });
+    el.innerHTML = ICON.check;
+    return el;
+  }
+
   function fileEl(f: FileItem, enter: boolean, now: number) {
     const peerNames = (ids: string[]) => ids.map((id) => nameOf(id)?.name ?? T('someone')).join(', ');
     const who = f.dir === 'out'
@@ -1085,7 +1091,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       : nameOf(f.from)?.name ?? T('Someone');
     const state =
       f.status === 'active' ? h('span', { class: 'waiting' }, f.dir === 'in' ? T('receiving') + ' ' : T('sending') + ' ', h('span', { 'data-pct': true }, '0%'))
-      : f.status === 'done' ? h('span', { class: 'landed' }, f.dir === 'in' ? T('✓ received') : T('✓ delivered'))
+      : f.status === 'done' ? h('span', { class: 'landed' }, f.dir === 'in' ? (f.saved ? T('✓ saved') : T('✓ received')) : T('✓ delivered'))
       : f.status === 'partial' ? h('span', { class: 'waiting' }, T('missed {who}', { who: peerNames(f.missed ?? []) }))
       : f.status === 'recalled' ? h('span', { class: 'failed' }, f.dir === 'in' ? T('pulled back by sender') : f.keptBy?.length ? T('pulled back · {who} had saved it', { who: peerNames(f.keptBy) }) : T('pulled back'))
       : f.status === 'blocked' ? h('span', { class: 'failed', title: T('Programs and scripts are blocked to keep everyone safe') }, T('blocked'))
@@ -1093,10 +1099,15 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     const ext = (f.name.includes('.') ? f.name.split('.').pop()! : 'file').slice(0, 4).toUpperCase();
     let action: HTMLElement | null = null;
     if (f.dir === 'in' && f.status === 'done' && f.url) {
-      action = h('a', { class: 'btn btn-sm btn-accent', href: f.url, download: f.name, title: T('Save {file}', { file: f.name }) });
+      // Once saved: a tick on the file icon, and the button becomes a quieter 'Save again'.
+      action = h('a', {
+        class: f.saved ? 'btn btn-sm btn-ghost saved' : 'btn btn-sm btn-accent', href: f.url, download: f.name,
+        title: f.saved ? T('Already saved to this device. Click to save another copy.') : T('Save {file}', { file: f.name }),
+        'aria-label': f.saved ? T('Save {file} again', { file: f.name }) : T('Save {file}', { file: f.name }),
+      });
       action.innerHTML = ICON.download;
-      action.append(T('Save'));
-      action.addEventListener('click', () => files.markSaved(f));
+      action.append(f.saved ? T('Save again') : T('Save'));
+      action.addEventListener('click', () => { files.markSaved(f); scheduleClipsRender(); });
     } else if (f.dir === 'out' && (f.status === 'active' || f.status === 'done' || f.status === 'partial')) {
       action = h('button', { class: 'btn btn-sm btn-ghost', type: 'button', title: T('Remove {file} from the other devices. Copies already saved stay where they are.', { file: f.name }) });
       action.innerHTML = ICON.undo;
@@ -1112,7 +1123,8 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
         state,
       ),
       h('div', { class: 'file-row' },
-        h('span', { class: 'file-ext mono' }, ext),
+        h('span', { class: 'file-ext mono', title: f.saved ? T('Saved to this device') : undefined }, ext,
+          f.saved && savedBadge()),
         h('div', { class: 'file-info' },
           h('span', { class: 'file-name', title: f.name }, f.name),
           h('span', { class: 'file-size mono' }, formatBytes(f.size)),

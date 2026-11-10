@@ -321,4 +321,9 @@ export const de: Record<string, string> = {
   'pulled back by sender': 'vom Absender zurückgezogen',
   'pulled back · {who} had saved it': 'zurückgezogen · {who} hatte sie gespeichert',
   'pulled back': 'zurückgezogen',
+  '✓ saved': '✓ gespeichert',
+  'Already saved to this device. Click to save another copy.': 'Schon auf diesem Gerät gespeichert. Klicke, um eine weitere Kopie zu speichern.',
+  'Save {file} again': '{file} erneut speichern',
+  'Save again': 'Erneut speichern',
+  'Saved to this device': 'Auf diesem Gerät gespeichert',
 };

@@ -403,7 +403,16 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
     background: var(--surface);
     border: 1px solid var(--line-strong);
     color: var(--accent-text);
+    position: relative;
   }
+  .file-saved {
+    position: absolute; right: -6px; bottom: -6px;
+    width: 18px; height: 18px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-ink);
+    box-shadow: 0 0 0 2px var(--surface-2);
+  }
+  .file-saved svg { width: 11px; height: 11px; stroke-width: 3; }
   .file-info { display: grid; min-width: 0; }
   .file-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .file-size { font-size: 12px; color: var(--muted); }

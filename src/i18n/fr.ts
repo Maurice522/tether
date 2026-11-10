@@ -321,4 +321,9 @@ export const fr: Record<string, string> = {
   'pulled back by sender': 'retiré par l’expéditeur',
   'pulled back · {who} had saved it': 'retiré · {who} l’avait enregistré',
   'pulled back': 'retiré',
+  '✓ saved': '✓ enregistré',
+  'Already saved to this device. Click to save another copy.': 'Déjà enregistré sur cet appareil. Cliquez pour en enregistrer une autre copie.',
+  'Save {file} again': 'Enregistrer {file} à nouveau',
+  'Save again': 'Enregistrer à nouveau',
+  'Saved to this device': 'Enregistré sur cet appareil',
 };
