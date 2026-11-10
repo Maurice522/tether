@@ -28,9 +28,11 @@ export interface FileItem {
   peers: string[];
   /** 0..1 across all recipients. */
   progress: number;
-  status: 'active' | 'done' | 'partial' | 'failed' | 'blocked';
+  status: 'active' | 'done' | 'partial' | 'failed' | 'blocked' | 'recalled';
   /** Who didn't get it, for partial/failed sends. */
   missed?: string[];
+  /** Pulled back, but these people had already saved it to their device (out). */
+  keptBy?: string[];
   url?: string;
   /** The receiver pressed Save (so leaving/reloading won't lose it). */
   saved?: boolean;
@@ -69,8 +71,45 @@ export class FileTransfers {
   private queues = new Map<string, Promise<void>>();
   private incoming = new Map<string, Incoming>();
   private outState = new Map<string, Map<string, { state: PeerTransfer; bytes: number }>>();
+  /** Recalls a peer hasn't heard yet because the link was down; resent when it comes back. */
+  private pendingRecalls = new Map<string, Set<string>>();
+  /** Incoming files the user saved, remembered even after the list is cleared. */
+  private savedIds = new Set<string>();
 
-  constructor(private mesh: Mesh, private me: string, private changed: (item: FileItem) => void) {}
+  constructor(
+    private mesh: Mesh,
+    private me: string,
+    private changed: (item: FileItem) => void,
+    /** A recall reached `peerId`; `saved` says whether they had already saved it (null: they no longer had it). */
+    private recallAnswered: (item: FileItem, peerId: string, saved: boolean | null) => void = () => {},
+  ) {}
+
+  markSaved(item: FileItem) {
+    item.saved = true;
+    this.savedIds.add(item.id);
+  }
+
+  /** Pull back a file we sent: stops it mid-transfer, and removes it from receivers who haven't saved it. */
+  recall(id: string) {
+    const item = this.items.find((i) => i.id === id && i.dir === 'out');
+    if (!item || item.status === 'recalled' || item.status === 'failed') return;
+    item.status = 'recalled';
+    item.keptBy = [];
+    for (const p of item.peers) {
+      if (this.mesh.send(p, { t: 'file-recall', id })) continue;
+      if (!this.pendingRecalls.has(p)) this.pendingRecalls.set(p, new Set());
+      this.pendingRecalls.get(p)!.add(id);
+    }
+    this.changed(item);
+  }
+
+  /** Call when the direct link to a peer (re)opens. */
+  peerOpen(peerId: string) {
+    const ids = this.pendingRecalls.get(peerId);
+    if (!ids) return;
+    for (const id of ids) if (this.mesh.send(peerId, { t: 'file-recall', id })) ids.delete(id);
+    if (!ids.size) this.pendingRecalls.delete(peerId);
+  }
 
   /** Check `file`, then queue it for each peer. */
   async send(file: File, peerIds: string[]): Promise<SendResult> {
@@ -107,6 +146,28 @@ export class FileTransfers {
       this.changed(item);
       return true;
     }
+    if (msg?.t === 'file-recall') {
+      // Only the person who sent a file can pull it back.
+      const item = this.items.find((i) => i.id === msg.id && i.dir === 'in' && i.from === from);
+      const inc = this.incoming.get(from);
+      if (inc && inc.item.id === msg.id) this.incoming.delete(from);
+      const saved = item ? !!item.saved : this.savedIds.has(msg.id) ? true : null;
+      if (item && item.status !== 'recalled' && item.status !== 'blocked') {
+        if (item.url) URL.revokeObjectURL(item.url);
+        item.url = undefined;
+        this.finish(item, 'recalled');
+      }
+      this.mesh.send(from, { t: 'file-recall-ack', id: msg.id, saved });
+      return true;
+    }
+    if (msg?.t === 'file-recall-ack') {
+      const item = this.items.find((i) => i.id === msg.id && i.dir === 'out' && i.peers.includes(from));
+      if (!item) return true;
+      if (msg.saved === true && !item.keptBy?.includes(from)) (item.keptBy ??= []).push(from);
+      this.recallAnswered(item, from, msg.saved === true ? true : msg.saved === false ? false : null);
+      this.changed(item);
+      return true;
+    }
     if (msg?.t === 'file-end') {
       const inc = this.incoming.get(from);
       if (!inc || inc.item.id !== msg.id) return true;
@@ -115,6 +176,7 @@ export class FileTransfers {
       const blob = new Blob(inc.chunks, { type: inc.item.mime });
       inc.chunks = [];
       void checkFile(Object.assign(blob, { name: inc.item.name })).then((v) => {
+        if (inc.item.status === 'recalled') return; // pulled back while we were checking it
         if (!v.ok) { this.finish(inc.item, 'blocked'); return; }
         inc.item.url = URL.createObjectURL(blob);
         inc.item.progress = 1;
@@ -161,10 +223,13 @@ export class FileTransfers {
     const state = this.outState.get(item.id)!.get(peerId)!;
     const dc = this.mesh.channel(peerId);
     try {
+      const recalled = () => item.status === 'recalled'; // a function so TS doesn't narrow it across awaits
+      if (recalled()) throw new Error('pulled back');
       if (!dc) throw new Error('no direct link');
       dc.bufferedAmountLowThreshold = LOW_WATER;
       dc.send(JSON.stringify({ t: 'file-start', id: item.id, name: item.name, size: item.size, mime: item.mime }));
       for (let off = 0; off < file.size; off += CHUNK) {
+        if (recalled()) throw new Error('pulled back'); // the receiver drops what it has on file-recall
         if (dc.readyState !== 'open') throw new Error('channel closed');
         if (dc.bufferedAmount > HIGH_WATER) await drained(dc);
         dc.send(await file.slice(off, off + CHUNK).arrayBuffer());
@@ -185,6 +250,7 @@ export class FileTransfers {
     const total = item.size * states.length;
     item.progress = total ? states.reduce((n, [, s]) => n + s.bytes, 0) / total : 1;
     const missed = states.filter(([, s]) => s.state === 'failed').map(([p]) => p);
+    if (item.status === 'recalled') { this.changed(item); return; }
     if (states.some(([, s]) => s.state === 'active')) item.status = 'active';
     else if (!missed.length) item.status = 'done';
     else item.status = missed.length === states.length ? 'failed' : 'partial';

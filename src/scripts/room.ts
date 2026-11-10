@@ -33,6 +33,7 @@ const ICON = {
   bolt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3 4 14h7l-1 7 9-11h-7z"/></svg>',
   hand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/></svg>',
   clip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m20 11.5-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4l7.9-7.9"/></svg>',
+  undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>',
   download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
   spotify: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#1ed760"/><path d="M7 9.5c3.5-1 7.5-.7 10.5 1M7.6 12.6c3-.8 6.2-.5 8.6.9M8.2 15.5c2.4-.6 4.8-.4 6.8.7" stroke="#000" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>',
 };
@@ -172,7 +173,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     state(peerId, state) {
       peerState.set(peerId, state);
       if (state !== 'open') files.peerGone(peerId);
-      if (state === 'open') mesh.send(peerId, { t: 'status', status: myStatus() });
+      if (state === 'open') { mesh.send(peerId, { t: 'status', status: myStatus() }); files.peerOpen(peerId); }
       renderAll();
       schedule(state === 'open' ? 800 : 0);
     },
@@ -191,12 +192,17 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
         notify(T('{who} sent a file', { who }), T('{file} · tap to open Tether and save it', { file: item.name }));
       }
       if (item.status === 'failed') toast(T('{file} from {who} was interrupted', { file: item.name, who }), { error: true });
+      if (item.status === 'recalled') toast(item.saved
+        ? T('{who} pulled back {file}. You had already saved it, so your copy stays on your device.', { who, file: item.name })
+        : T('{who} pulled back {file}', { who, file: item.name }), { icon: '↩' });
       if (item.status === 'blocked') toast(T('Blocked {file} from {who}: programs and scripts are not allowed.', { file: item.name, who }), { error: true });
     }
     if (prev !== item.status && item.dir === 'out' && item.status === 'partial') {
       toast(T("{file} didn't reach {who}", { file: item.name, who: item.missed!.map((id) => nameOf(id)?.name ?? T('someone')).join(', ') }), { error: true });
     }
     scheduleClipsRender();
+  }, (item, peerId, saved) => {
+    if (saved) toast(T('{who} had already saved {file}, so their copy stays on their device.', { who: nameOf(peerId)?.name ?? T('Someone'), file: item.name }), { error: true });
   });
 
   /** Send to everyone online, or just `only`. Files need a direct link: they never go through the server. */
@@ -1020,7 +1026,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     const els = entries.map((c) => {
       const isFile = 'kind' in c;
       const key = isFile
-        ? JSON.stringify([c.status, c.missed, !!c.url, timeAgo(c.at, now)])
+        ? JSON.stringify([c.status, c.missed, c.keptBy, !!c.url, timeAgo(c.at, now)])
         : JSON.stringify([c.landed, pending?.id === c.id, c.via, timeAgo(c.at, now)]);
       const cached = clipEls.get(c.id);
       if (cached?.key === key) return cached.el;
@@ -1081,6 +1087,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       f.status === 'active' ? h('span', { class: 'waiting' }, f.dir === 'in' ? T('receiving') + ' ' : T('sending') + ' ', h('span', { 'data-pct': true }, '0%'))
       : f.status === 'done' ? h('span', { class: 'landed' }, f.dir === 'in' ? T('✓ received') : T('✓ delivered'))
       : f.status === 'partial' ? h('span', { class: 'waiting' }, T('missed {who}', { who: peerNames(f.missed ?? []) }))
+      : f.status === 'recalled' ? h('span', { class: 'failed' }, f.dir === 'in' ? T('pulled back by sender') : f.keptBy?.length ? T('pulled back · {who} had saved it', { who: peerNames(f.keptBy) }) : T('pulled back'))
       : f.status === 'blocked' ? h('span', { class: 'failed', title: T('Programs and scripts are blocked to keep everyone safe') }, T('blocked'))
       : h('span', { class: 'failed' }, f.dir === 'in' ? T('interrupted') : T('not delivered'));
     const ext = (f.name.includes('.') ? f.name.split('.').pop()! : 'file').slice(0, 4).toUpperCase();
@@ -1089,7 +1096,12 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       action = h('a', { class: 'btn btn-sm btn-accent', href: f.url, download: f.name, title: T('Save {file}', { file: f.name }) });
       action.innerHTML = ICON.download;
       action.append(T('Save'));
-      action.addEventListener('click', () => { f.saved = true; });
+      action.addEventListener('click', () => files.markSaved(f));
+    } else if (f.dir === 'out' && (f.status === 'active' || f.status === 'done' || f.status === 'partial')) {
+      action = h('button', { class: 'btn btn-sm btn-ghost', type: 'button', title: T('Remove {file} from the other devices. Copies already saved stay where they are.', { file: f.name }) });
+      action.innerHTML = ICON.undo;
+      action.append(T('Pull back'));
+      action.addEventListener('click', () => files.recall(f.id));
     }
     return h('li', { class: `clip file ${f.dir}${enter ? ' enter' : ''}` },
       h('div', { class: 'clip-meta' },

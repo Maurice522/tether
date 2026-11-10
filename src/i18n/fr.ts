@@ -313,4 +313,12 @@ export const fr: Record<string, string> = {
   'Blocked {file} from {who}: programs and scripts are not allowed.': '{file} de {who} bloqué : les programmes et scripts ne sont pas autorisés.',
   'Programs and scripts are blocked to keep everyone safe': 'Les programmes et scripts sont bloqués pour la sécurité de tous',
   'blocked': 'bloqué',
+  '{who} pulled back {file}. You had already saved it, so your copy stays on your device.': '{who} a retiré {file}. Vous l’aviez déjà enregistré : votre copie reste sur votre appareil.',
+  '{who} pulled back {file}': '{who} a retiré {file}',
+  '{who} had already saved {file}, so their copy stays on their device.': '{who} avait déjà enregistré {file} : cette copie reste sur son appareil.',
+  'Remove {file} from the other devices. Copies already saved stay where they are.': 'Retirer {file} des autres appareils. Les copies déjà enregistrées restent où elles sont.',
+  'Pull back': 'Retirer',
+  'pulled back by sender': 'retiré par l’expéditeur',
+  'pulled back · {who} had saved it': 'retiré · {who} l’avait enregistré',
+  'pulled back': 'retiré',
 };
