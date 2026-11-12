@@ -1,6 +1,8 @@
 import { handle } from '@astrojs/cloudflare/handler';
 import { Directory } from './server/directory';
 import { Room } from './server/room';
+import { COUNTRY_HEADER } from './i18n';
+import { geoRedirect } from './lib/geo';
 
 export { Directory, Room };
 
@@ -21,9 +23,15 @@ export default {
       return Response.redirect(url.toString(), permanent);
     }
 
+    const geo = geoRedirect(request, url);
+    if (geo) return geo;
+
     // WebSocket upgrades go straight to the session's Durable Object, before Astro sees them.
     const m = url.pathname.match(WS_PATH);
     if (m) return env.ROOM.get(env.ROOM.idFromName(m[1])).fetch(request);
-    return handle(request, env, ctx);
+    // Pass the visitor's country on to Astro (session rooms pick their language from it). Overwrites any client value.
+    const headers = new Headers(request.headers);
+    headers.set(COUNTRY_HEADER, (request.cf?.country as string | undefined) ?? '');
+    return handle(new Request(request, { headers }), env, ctx);
   },
 } satisfies ExportedHandler<Env>;

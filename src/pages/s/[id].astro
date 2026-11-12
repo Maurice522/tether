@@ -1,10 +1,10 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { LANG_COOKIE, pickLang, translator } from '../../i18n';
+import { COUNTRY_HEADER, LANG_COOKIE, pickLang, translator } from '../../i18n';
 
 // Room links are shared between people who speak different languages, so the URL has no language:
 // each person sees their own choice (cookie set by the switcher), else their browser's language.
-const lang = pickLang(Astro.cookies.get(LANG_COOKIE)?.value, Astro.request.headers.get('accept-language'));
+const lang = pickLang(Astro.cookies.get(LANG_COOKIE)?.value, Astro.request.headers.get('accept-language'), Astro.request.headers.get(COUNTRY_HEADER));
 const T = translator(lang);
 
 const id = String(Astro.params.id ?? '').toUpperCase();
