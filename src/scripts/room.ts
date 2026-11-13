@@ -220,7 +220,12 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     const direct = targets.filter((m) => mesh.channel(m.id));
     const indirect = targets.filter((m) => !mesh.channel(m.id));
     if (!direct.length) {
-      toast(T("Files only travel over a direct link, and there isn't one yet. Try again in a moment."), { error: true });
+      // Files never go through our server, so say why it can't go, and what to do about it.
+      const blocked = indirect.every((m) => peerState.get(m.id) === 'failed');
+      toast(blocked
+        ? T('Files need a direct connection between devices, and this network is blocking it. Text still works. To send files, put one device on a different network, such as a phone hotspot.')
+        : T('Files are sent directly between devices, never through our server. The direct connection is still being set up, so try again in a moment.'),
+        { error: true, ms: blocked ? 9000 : undefined });
       return;
     }
     const sent: string[] = [];
@@ -236,7 +241,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     if (!sent.length) return;
     const names = direct.length === 1 ? direct[0].name : T('{n} people', { n: direct.length });
     toast(T('Sending {what} to {who}', { what: sent.length === 1 ? sent[0] : T('{n} files', { n: sent.length }), who: names }), { icon: '↗' });
-    if (indirect.length) toast(T("{who} has no direct link, so they won't get it.", { who: indirect.map((m) => m.name).join(', ') }), { error: true });
+    if (indirect.length) toast(T("{who} won't get it: files need a direct connection, and there isn't one with them yet.", { who: indirect.map((m) => m.name).join(', ') }), { error: true });
   }
 
   const fileInput = h('input', { type: 'file', multiple: true, hidden: true });
@@ -937,7 +942,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     const conn = isMe ? null
       : !m.online ? h('span', { class: 'pill' }, h('span', { class: 'dot' }), T('Offline'))
       : s === 'open' ? h('span', { class: 'pill', title: T('Clips go directly between your browsers, end-to-end encrypted') }, h('span', { class: 'dot on' }), T('Direct'))
-      : s === 'failed' ? h('span', { class: 'pill', title: T('A direct link could not be made, so clips go through the server (deleted after 2 min)') }, h('span', { class: 'dot away' }), T('Relayed'))
+      : s === 'failed' ? h('span', { class: 'pill', title: T("No direct connection: this network blocks it. Text is passed on by our server and not stored. Files need a direct connection, so they can't be sent to this person.") }, h('span', { class: 'dot away' }), T('Relayed'))
       : h('span', { class: 'pill' }, h('span', { class: 'dot away' }), T('Linking…'));
 
     return h('article', { class: 'member' + (enter ? ' enter' : ''), 'data-id': m.id },
