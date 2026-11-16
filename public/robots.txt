@@ -2,7 +2,9 @@ User-agent: *
 Allow: /
 # Session rooms are not blocked here on purpose: they carry noindex, and crawlers must be able to
 # read it (and link-preview bots need them for invite cards). The share hand-off and API are not content.
-Disallow: /share
+# "/share$" (exact) rather than "/share", which would also block /share-files-securely/.
+Disallow: /share$
+Disallow: /share?
 Disallow: /api/
 
 Sitemap: https://tethersecure.com/sitemap.xml
