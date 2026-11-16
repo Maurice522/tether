@@ -1,6 +1,7 @@
 ---
 import { DEFAULT_LANG, localePath, translator, type Lang } from '../i18n';
 import { guides } from '../content/guides';
+import { compare } from '../content/compare';
 
 interface Props { lang?: Lang }
 const { lang = DEFAULT_LANG } = Astro.props;
@@ -19,24 +20,31 @@ const home = localePath(lang, '/');
         {guides[lang].map((g) => <li><a href={localePath(lang, `/${g.slug}/`)}>{g.nav}</a></li>)}
       </ul>
     </nav>
+    <nav aria-label={T('Compare Tether')}>
+      <p class="eyebrow">{T('Compare')}</p>
+      <ul>
+        {compare[lang].map((g) => <li><a href={localePath(lang, `/${g.slug}/`)}>{g.nav}</a></li>)}
+      </ul>
+    </nav>
     <nav aria-label="Tether">
       <p class="eyebrow">Tether</p>
       <ul>
         <li><a href={`${home}?start=1`}>{T('Start a session')}</a></li>
         <li><a href={`${home}#faq`}>{T('FAQ')}</a></li>
         <li><a href={localePath(lang, '/privacy/')}>{T('Privacy & security')}</a></li>
+        <li><a href={localePath(lang, '/about/')}>{T('About')}</a></li>
       </ul>
     </nav>
   </div>
   <div class="wrap foot-base">
     <span class="mono">© {new Date().getFullYear()} tethersecure.com</span>
-    <span>{T('Free · No sign-up · Sessions end after 12 hours of inactivity')}</span>
+    <span>{T('Free · No sign-up · Open source')}</span>
   </div>
 </footer>
 
 <style>
   .site-foot { border-top: 1px solid var(--line); margin-top: 40px; padding-top: 44px; font-size: 14px; }
-  .foot-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr)); gap: 32px; }
+  .foot-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); gap: 32px; }
   .foot-logo { font-weight: 600; font-size: 18px; letter-spacing: -0.03em; text-decoration: none; }
   .foot-brand p { color: var(--muted); max-width: 36ch; margin: 10px 0 0; }
   nav ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }

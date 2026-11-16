@@ -1,6 +1,8 @@
 export const MAX_MEMBERS = 4;
 export const OTP_TTL_MS = 10 * 60 * 1000;
 export const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+/** A session someone chose to keep ("Remember these devices") lives this long without anyone connecting. */
+export const KEPT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 /** Members offline for this long lose their seat. */
 export const EVICT_AFTER_MS = 15 * 60 * 1000;
 export const MAX_CLIP_BYTES = 64 * 1024;

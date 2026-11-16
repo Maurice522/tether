@@ -1,0 +1,6 @@
+---
+import DocPage from '../../components/views/DocPage.astro';
+import { about, aboutSchema } from '../../content/about';
+export const prerender = true;
+---
+<DocPage lang="fr" path="/about/" content={about.fr} schema={aboutSchema('fr')} />

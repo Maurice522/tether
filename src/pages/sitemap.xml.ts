@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { guides } from '../content/guides';
+import { allGuides } from '../content/guides';
 import { alternatesFor, DEFAULT_LANG, LANGS } from '../i18n';
 
 export const prerender = true;
@@ -10,7 +10,8 @@ const SITE = 'https://tethersecure.com';
 export const GET: APIRoute = () => {
   const pages = [
     { path: '/', priority: '1.0', freq: 'weekly' },
-    ...guides.en.map((g) => ({ path: `/${g.slug}/`, priority: '0.8', freq: 'monthly' })),
+    ...allGuides('en').map((g) => ({ path: `/${g.slug}/`, priority: '0.8', freq: 'monthly' })),
+    { path: '/about/', priority: '0.5', freq: 'yearly' },
     { path: '/privacy/', priority: '0.4', freq: 'yearly' },
   ];
   const lastmod = new Date().toISOString().slice(0, 10);

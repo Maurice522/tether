@@ -7,7 +7,8 @@ import { Mesh, type PeerState } from './mesh';
 import { connectSpotify, disconnectSpotify, nowPlaying, spotifyAvailable, spotifyConnected } from './spotify';
 import { renderSVG } from 'uqr';
 import { T } from '../i18n/client';
-import { api, h, membership, timeAgo, toast, type Membership } from './ui';
+import { api, h, membership, paired, timeAgo, toast, type Membership } from './ui';
+import { track } from './track';
 
 const MAX_CLIP = 64 * 1024;
 const MAX_HISTORY = 30;
@@ -68,6 +69,7 @@ export async function startRoom(root: HTMLElement) {
         const me = await ensureName({ reason: info.host ? `You're joining ${info.host}'s session. They'll see this name.` : undefined });
         const res = await api('/api/session/join', { body: { otp: input.value, name: me.name, tag: me.tag } });
         membership.set(res.sessionId, res.member);
+        track('session_join', { via: 'code' }, { beforeNavigation: true });
         if (res.sessionId !== sid) location.href = `/s/${res.sessionId}`;
         else location.reload();
       } catch (err: any) {
@@ -92,6 +94,7 @@ export async function startRoom(root: HTMLElement) {
       const res = await api('/api/session/join', { body: { sessionId: sid, invite, name: me.name, tag: me.tag } });
       membership.set(sid, res.member);
       seat = res.member;
+      track('session_join', { via: 'invite' });
     } catch (err: any) {
       if (err.message === 'cancelled') return showJoin(T('Join this session?'), T('You need a name to join. Open the invite link again, or enter the code.'));
       return showJoin(T('Invite not valid'), err.message);
@@ -173,7 +176,8 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
     state(peerId, state) {
       peerState.set(peerId, state);
       if (state !== 'open') files.peerGone(peerId);
-      if (state === 'open') { mesh.send(peerId, { t: 'status', status: myStatus() }); files.peerOpen(peerId); }
+      if (state === 'open') { mesh.send(peerId, { t: 'status', status: myStatus() }); files.peerOpen(peerId); track('peer_connected', { link: 'direct' }); }
+      if (state === 'failed') track('peer_connected', { link: 'relay' });
       renderAll();
       schedule(state === 'open' ? 800 : 0);
     },
@@ -235,6 +239,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       else if ('blocked' in r) toast(blockedText(file.name, r.blocked), { error: true });
       else {
         sent.push(file.name);
+        track('file_sent', { size_mb: Math.ceil(file.size / 1048576), recipients: direct.length });
         for (const m of direct) pulse(myId, m.id);
       }
     }
@@ -353,6 +358,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       if (msg.otp !== otp) { otp = msg.otp; flapTo(otp); }
       otpExpiresAt = msg.otpExpiresAt;
       inviteToken = msg.invite;
+      syncRemember(!!msg.kept);
       if (firstSync) {
         welcome();
         try { localStorage.setItem('tether:last', JSON.stringify({ sid, at: Date.now() })); } catch { /* private mode */ }
@@ -381,6 +387,31 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       );
     }
   }
+
+  /* --------------------------------------------- remember these devices */
+  const rememberToggle = $<HTMLInputElement>('[data-remember-toggle]');
+  let kept: boolean | null = null;
+  function syncRemember(on: boolean) {
+    rememberToggle.checked = on;
+    if (on) paired.set({ sid, names: members.filter((m) => m.id !== myId).map((m) => m.name), at: Date.now() });
+    else paired.remove(sid);
+    if (kept !== null && kept !== on && !rememberPending) {
+      toast(on ? T('Someone turned on Remember these devices') : T('Someone turned off Remember these devices'));
+    }
+    rememberPending = false;
+    kept = on;
+  }
+  let rememberPending = false;
+  rememberToggle.addEventListener('change', () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) { rememberToggle.checked = !!kept; toast(T('Not connected right now. Try again in a moment.'), { error: true }); return; }
+    const on = rememberToggle.checked;
+    rememberPending = true;
+    ws.send(JSON.stringify({ t: 'keep', on }));
+    toast(on
+      ? T('Remembered. Open Tether on any of these devices to reconnect. It stays until someone leaves or it goes unused for 30 days.')
+      : T("Not remembered any more. The session ends 12 hours after everyone's gone."), { icon: on ? '✓' : undefined, ms: on ? 6000 : undefined });
+    if (on) track('devices_remembered');
+  });
 
   /** First roster: tell a joiner whose session this is (the creator already knows). */
   function welcome() {
@@ -439,6 +470,7 @@ function run(root: HTMLElement, sid: string, seat: Membership, show: (v: string)
       pulse(myId, p.id);
     }
     if (relayed) { clip.via = relayed === peers.length ? 'relay' : 'mixed'; schedule(0); }
+    if (peers.length) track('clip_sent', { via: clip.via, source });
     clips.unshift(clip);
     clips = clips.slice(0, MAX_HISTORY);
     persistClips();

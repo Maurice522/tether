@@ -1,7 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { digest, randomOtp, safeEqual } from '../lib/crypto';
 import {
-  EVICT_AFTER_MS, MAX_CLIP_BYTES, MAX_MEMBERS, OTP_TTL_MS, SESSION_TTL_MS,
+  EVICT_AFTER_MS, KEPT_TTL_MS, MAX_CLIP_BYTES, MAX_MEMBERS, OTP_TTL_MS, SESSION_TTL_MS,
   type JoinResult, type MemberStatus, type PublicMember,
 } from '../lib/types';
 
@@ -24,6 +24,8 @@ interface Meta {
   invite: string;
   createdAt: number;
   lastActive: number;
+  /** "Remember these devices": seats aren't freed and the session lasts KEPT_TTL_MS unused. */
+  kept?: boolean;
 }
 
 /** Survives hibernation via serializeAttachment. */
@@ -158,6 +160,13 @@ export class Room extends DurableObject<Env> {
         ws.serializeAttachment({ id: info.id, status: cleanStatus(msg.status) } satisfies SocketInfo);
         this.broadcastRoster();
         break;
+      case 'keep':
+        if (!this.meta) return;
+        this.meta.kept = msg.on === true;
+        this.meta.lastActive = Date.now();
+        await this.save();
+        this.broadcastRoster();
+        break;
       case 'signal': {
         if (!SIGNAL_TYPES.has(msg.type) || typeof msg.to !== 'string' || msg.to === info.id) return;
         const delivered = this.sockets(msg.to).map((peer) => this.send(peer, { t: 'signal', from: info.id, type: msg.type, data: msg.data ?? null }));
@@ -180,13 +189,13 @@ export class Room extends DurableObject<Env> {
     await this.webSocketClose(ws);
   }
 
-  /** Every 10 min: free stale seats; after 12 h with nobody connected the session is deleted. */
+  /** Every 10 min: free stale seats; after 12 h (30 days if kept) with nobody connected the session is deleted. */
   async alarm() {
     if (!this.meta) return;
     const now = Date.now();
     const live = this.ctx.getWebSockets().length > 0;
     if (live) this.meta.lastActive = now;
-    if (!live && now - this.meta.lastActive > SESSION_TTL_MS) {
+    if (!live && now - this.meta.lastActive > (this.meta.kept ? KEPT_TTL_MS : SESSION_TTL_MS)) {
       await this.env.DIRECTORY.get(this.env.DIRECTORY.idFromName('v1')).releaseOtp(this.meta.otpHash, this.meta.sid);
       await this.ctx.storage.deleteAll();
       this.meta = null;
@@ -222,6 +231,7 @@ export class Room extends DurableObject<Env> {
 
   /** Drop seats nobody has used for a while (offline and not seen recently). Returns true if any went. */
   private evictStale(): boolean {
+    if (this.meta?.kept) return false; // remembered devices keep their seats until they leave
     const online = new Set(this.onlineIds());
     const cutoff = Date.now() - EVICT_AFTER_MS;
     const before = this.seats.length;
@@ -280,6 +290,7 @@ export class Room extends DurableObject<Env> {
       otp: this.meta.otp,
       otpExpiresAt: this.meta.otpExpiresAt,
       invite: this.meta.invite,
+      kept: !!this.meta.kept,
     };
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === except) continue;

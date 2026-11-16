@@ -1,10 +1,10 @@
 ---
 import Guide from '../../components/views/Guide.astro';
-import { guides } from '../../content/guides';
+import { allGuides } from '../../content/guides';
 
 export const prerender = true;
 export function getStaticPaths() {
-  return guides.fr.map((guide) => ({ params: { guide: guide.slug }, props: { guide } }));
+  return allGuides('fr').map((guide) => ({ params: { guide: guide.slug }, props: { guide } }));
 }
 const { guide } = Astro.props;
 ---

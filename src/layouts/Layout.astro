@@ -18,6 +18,9 @@ interface Props {
    * redirect to a visitor's chosen language. Pages without it (session rooms) just reload in the new language.
    */
   alternates?: Record<Lang, string>;
+  /** Link-preview title and text when they should differ from the tab title (e.g. invite links). */
+  socialTitle?: string;
+  socialDescription?: string;
 }
 const SITE = 'https://tethersecure.com';
 const {
@@ -30,6 +33,8 @@ const {
 const T = translator(lang);
 const title = Astro.props.title ?? T('Tether — Sync Clipboard & Securely Share Files Between PCs');
 const description = Astro.props.description ?? T('Tether connects your PCs, Mac and phone in seconds. Sync clipboard, send text and share files securely, peer-to-peer and encrypted. No upload, no sign-up, free.');
+const socialTitle = Astro.props.socialTitle ?? title;
+const socialDescription = Astro.props.socialDescription ?? description;
 const imageAlt = Astro.props.imageAlt ?? T('Tether: copy on one device, paste on the other. Clipboard and file sharing, browser to browser.');
 const canonical = new URL(Astro.url.pathname, SITE).href;
 const imageUrl = new URL(image, SITE).href;
@@ -69,8 +74,8 @@ const home = lang === DEFAULT_LANG ? '/' : `/${lang}/`;
     <meta property="og:locale" content={OG_LOCALE[lang]} />
     {alternates && LANGS.filter((l) => l !== lang).map((l) => <meta property="og:locale:alternate" content={OG_LOCALE[l]} />)}
     <meta property="og:url" content={canonical} />
-    <meta property="og:title" content={title} />
-    <meta property="og:description" content={description} />
+    <meta property="og:title" content={socialTitle} />
+    <meta property="og:description" content={socialDescription} />
     <meta property="og:image" content={imageUrl} />
     <meta property="og:image:secure_url" content={imageUrl} />
     <meta property="og:image:type" content="image/png" />
@@ -80,8 +85,8 @@ const home = lang === DEFAULT_LANG ? '/' : `/${lang}/`;
 
     <!-- Twitter / X -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={title} />
-    <meta name="twitter:description" content={description} />
+    <meta name="twitter:title" content={socialTitle} />
+    <meta name="twitter:description" content={socialDescription} />
     <meta name="twitter:image" content={imageUrl} />
     <meta name="twitter:image:alt" content={imageAlt} />
     <meta name="theme-color" content="#0a0b0c" media="(prefers-color-scheme: dark)" />

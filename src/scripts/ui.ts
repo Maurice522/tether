@@ -72,6 +72,28 @@ export const membership = {
   },
   clear(sid: string) {
     try { localStorage.removeItem(`tether:m:${sid}`); } catch { /* private mode */ }
+    paired.remove(sid);
+  },
+};
+
+/**
+ * Sessions this browser is in with "Remember these devices" on, so the home page can offer one-tap reconnect.
+ * Only a label (the other people's names) is stored; the seat itself is the membership above.
+ */
+export interface Paired { sid: string; names: string[]; at: number }
+const PAIRED_KEY = 'tether:paired';
+export const paired = {
+  list(): Paired[] {
+    try {
+      const all = JSON.parse(localStorage.getItem(PAIRED_KEY) ?? '[]') as Paired[];
+      return all.filter((p) => membership.get(p.sid)).sort((a, b) => b.at - a.at);
+    } catch { return []; }
+  },
+  set(p: Paired) {
+    try { localStorage.setItem(PAIRED_KEY, JSON.stringify([p, ...paired.list().filter((x) => x.sid !== p.sid)].slice(0, 5))); } catch { /* private mode */ }
+  },
+  remove(sid: string) {
+    try { localStorage.setItem(PAIRED_KEY, JSON.stringify(paired.list().filter((x) => x.sid !== sid))); } catch { /* private mode */ }
   },
 };
 

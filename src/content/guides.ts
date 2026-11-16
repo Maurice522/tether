@@ -2,12 +2,15 @@ import type { Lang } from '../i18n';
 import type { Faq } from './faq';
 import { guidesDe } from './guides.de';
 import { guidesFr } from './guides.fr';
+import { compare } from './compare';
 
 export interface GuideSection {
   h2: string;
   paras?: string[];
   list?: string[];
   steps?: { title: string; text: string }[];
+  /** Comparison table: header row, then one row per feature (feature, Tether, the other tool). */
+  table?: { head: [string, string, string]; rows: [string, string, string][] };
 }
 
 export interface Guide {
@@ -277,4 +280,7 @@ const en: Guide[] = [
 /** Landing pages per language. Slugs are shared across languages so /de/<slug>/ pairs with /<slug>/ for hreflang. */
 export const guides: Record<Lang, Guide[]> = { en, de: guidesDe, fr: guidesFr };
 
-export const guideBySlug = (lang: Lang, slug: string) => guides[lang].find((g) => g.slug === slug);
+/** Every landing page: how-to guides plus the comparison pages ("… alternative", "AirDrop for Windows"). */
+export const allGuides = (lang: Lang): Guide[] => [...guides[lang], ...compare[lang]];
+
+export const guideBySlug = (lang: Lang, slug: string) => allGuides(lang).find((g) => g.slug === slug);

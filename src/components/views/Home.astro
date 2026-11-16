@@ -51,6 +51,7 @@ const org = {
   name: 'Tether',
   url: SITE + '/',
   logo: SITE + '/icon-512.png',
+  sameAs: ['https://github.com/Maurice522/tether'],
 };
 ---
 <Layout lang={lang} alternates={alternatesFor('/')}>
@@ -67,6 +68,11 @@ const org = {
         {T("Copy on one.")}<br /><span class="serif">{T("Paste on the other.")}</span>
       </h1>
       <p class="lede">{T("Link your laptop, your phone, or a friend's machine with a 6-digit code or a QR scan. What you copy on one shows up on the others, and files drop straight across. Browser to browser, nothing uploaded.")}</p>
+
+      <div class="paired card" data-paired hidden>
+        <p class="eyebrow">{T("Your paired devices")}</p>
+        <ul class="paired-list" data-paired-list></ul>
+      </div>
 
       <div class="dock card">
         <div class="dock-start">
@@ -263,9 +269,29 @@ const org = {
 <script>
   import { T } from '../../i18n/client';
   import { ensureName } from '../../scripts/identity';
-  import { api, membership, toast } from '../../scripts/ui';
+  import { api, membership, paired, toast } from '../../scripts/ui';
+  import { track } from '../../scripts/track';
 
   const startBtn = document.getElementById('start') as HTMLButtonElement;
+
+  // Sessions this browser chose to remember: one tap to reconnect, no code.
+  const pairedBox = document.querySelector<HTMLElement>('[data-paired]')!;
+  const pairedList = pairedBox.querySelector<HTMLElement>('[data-paired-list]')!;
+  const pairs = paired.list();
+  for (const p of pairs) {
+    const li = document.createElement('li');
+    const who = document.createElement('span');
+    who.className = 'paired-who';
+    who.textContent = p.names.length ? T('With {names}', { names: p.names.join(', ') }) : T('Your remembered session');
+    const a = document.createElement('a');
+    a.className = 'btn btn-sm btn-accent';
+    a.href = `/s/${p.sid}`;
+    a.textContent = T('Reconnect');
+    a.addEventListener('click', () => track('paired_reopen', {}, { beforeNavigation: true }));
+    li.append(who, a);
+    pairedList.append(li);
+  }
+  pairedBox.hidden = !pairs.length;
   const form = document.getElementById('join-form') as HTMLFormElement;
   const otpInput = document.getElementById('otp') as HTMLInputElement;
   const cells = [...document.querySelectorAll<HTMLElement>('.otp .cell')];
@@ -277,6 +303,7 @@ const org = {
       startBtn.disabled = true;
       const res = await api('/api/session/create', { body: { name: me.name, tag: me.tag } });
       membership.set(res.sessionId, res.member);
+      track('session_start', {}, { beforeNavigation: true });
       location.href = `/s/${res.sessionId}`;
     } catch (e: any) {
       startBtn.disabled = false;
@@ -344,6 +371,7 @@ const org = {
       btn.setAttribute('aria-label', T('Joining…'));
       const res = await api('/api/session/join', { body: { otp, name: me.name, tag: me.tag } });
       membership.set(res.sessionId, res.member);
+      track('session_join', { via: 'code' }, { beforeNavigation: true });
       location.href = `/s/${res.sessionId}`;
     } catch (err: any) {
       btn.disabled = false;
@@ -426,6 +454,11 @@ const org = {
   .lede { font-size: 17px; max-width: 46ch; color: var(--muted); margin: 0 0 32px; text-wrap: pretty; }
   .small { font-size: 13px; margin: 0; }
 
+  .paired { padding: 16px 20px; margin-bottom: 14px; max-width: 580px; }
+  .paired .eyebrow { margin: 0 0 8px; }
+  .paired-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .paired-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .paired-who { font-size: 15px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dock {
     display: grid;
     /* The code boxes keep a usable width; longer languages wrap the start column instead. */

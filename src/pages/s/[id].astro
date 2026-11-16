@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { COUNTRY_HEADER, LANG_COOKIE, pickLang, translator } from '../../i18n';
+import { room } from '../../lib/rooms';
 
 // Room links are shared between people who speak different languages, so the URL has no language:
 // each person sees their own choice (cookie set by the switcher), else their browser's language.
@@ -10,8 +11,16 @@ const T = translator(lang);
 const id = String(Astro.params.id ?? '').toUpperCase();
 if (!/^[0-9A-Z]{8}$/.test(id)) return Astro.redirect('/');
 const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
+
+// Link previews (WhatsApp, Slack, iMessage…) for invite links: say whose session it is.
+// Only the host's display name is shown; the invite token lives in the URL hash and never reaches the server.
+const info = await room(id).info().catch(() => null);
+const socialTitle = info?.host ? T('Join {host} on Tether', { host: info.host }) : T('Join a Tether session');
+const socialDescription = info?.host
+  ? T('{host} invited you to sync your clipboard and share files, browser to browser. Nothing uploaded, no sign-up.', { host: info.host })
+  : T('Sync your clipboard and share files between devices, browser to browser. Nothing uploaded, no sign-up.');
 ---
-<Layout lang={lang} title={T("Session {id} — Tether", { id: pretty })} noindex>
+<Layout lang={lang} title={T("Session {id} — Tether", { id: pretty })} noindex {socialTitle} {socialDescription}>
   <div slot="center" class="session-pill pill mono" data-conn>
     <span class="dot"></span>
     <span data-conn-label>{T("Connecting…")}</span>
@@ -93,6 +102,16 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
             <p class="fine muted">{T("Point a phone camera at this to join without typing.")}</p>
           </div>
           <p class="fine muted">{T("The invite link skips the code. Anyone with it can join while there's a free seat.")}</p>
+          <label class="remember" data-remember>
+            <span class="remember-copy">
+              <span class="remember-title">{T("Remember these devices")}</span>
+              <span class="fine muted" data-remember-sub>{T("Keep this session so your devices reconnect with one tap from the Tether home page. No new code needed.")}</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" data-remember-toggle />
+              <span class="track"><span class="thumb"></span></span>
+            </span>
+          </label>
         </div>
 
         <div class="panel card clips">
@@ -334,6 +353,10 @@ const pretty = `${id.slice(0, 4)}·${id.slice(4)}`;
   .switch input:checked + .track { background: var(--accent); }
   .switch input:checked + .track .thumb { translate: 14px 0; }
   .switch input:focus-visible + .track { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+  .remember { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line-strong); cursor: pointer; }
+  .remember-copy { display: grid; gap: 4px; }
+  .remember-title { font-size: 14px; font-weight: 500; }
+  .remember .fine { margin: 0; }
 
   .mode {
     display: flex;

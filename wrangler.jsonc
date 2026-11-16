@@ -10,8 +10,9 @@
   "workers_dev": false,
   "preview_urls": false,
   // Run the worker before static pages so www/http requests can be redirected (Astro still serves the files).
-  // Hashed /_astro/ bundles skip it, to save Worker requests on the free plan.
-  "assets": { "binding": "ASSETS", "directory": "./dist/client", "run_worker_first": ["/*", "!/_astro/*"] },
+  // Hashed /_astro/ bundles skip it, to save Worker requests on the free plan. The /@vite, /@id, /@fs, /src and
+  // /node_modules paths only exist on the dev server; without these exclusions the worker swallows them.
+  "assets": { "binding": "ASSETS", "directory": "./dist/client", "run_worker_first": ["/*", "!/_astro/*", "!/screenshots/*", "!/@vite/*", "!/@id/*", "!/@fs/*", "!/src/*", "!/node_modules/*"] },
   "routes": [
     { "pattern": "tethersecure.com", "custom_domain": true },
     { "pattern": "www.tethersecure.com", "custom_domain": true }

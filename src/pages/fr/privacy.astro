@@ -1,5 +1,6 @@
 ---
-import Privacy from '../../components/views/Privacy.astro';
+import DocPage from '../../components/views/DocPage.astro';
+import { privacy } from '../../content/privacy';
 export const prerender = true;
 ---
-<Privacy lang="fr" />
+<DocPage lang="fr" path="/privacy/" content={privacy.fr} />
