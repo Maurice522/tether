@@ -103,6 +103,8 @@ export function ensureName(opts: { force?: boolean; reason?: string } = {}): Pro
   return new Promise((resolve, reject) => {
     form.onsubmit = (e) => {
       e.preventDefault();
+      // Cancel is also a submit button (value="cancel"): close without saving instead of validating.
+      if ((e.submitter as HTMLButtonElement | null)?.value === 'cancel') { dialog.close('cancel'); return; }
       const v = input.value.replace(/\s+/g, ' ').trim();
       if (!v) { input.focus(); return; }
       setName(v);
